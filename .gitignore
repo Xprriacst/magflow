@@ -1,0 +1,51 @@
+# System
+.DS_Store
+*.log
+
+# Node
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build
+/build
+/dist
+*.min.js
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+*.swp
+*.swo
+
+# Uploads & Output
+uploads/
+output/
+*.indd
+*.idml
+
+# PID files
+.backend.pid
+.frontend.pid
+.flask.pid
+
+# Test results
+test-results/
+playwright-report/
+
+# Vite
+vite.config.*s.*
+.vite/
