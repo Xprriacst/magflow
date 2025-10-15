@@ -14,21 +14,38 @@ const PLACEHOLDER_IMAGE = process.env.MAGFLOW_PLACEHOLDER_IMAGE_URL ||
  */
 router.post('/generate', async (req, res, next) => {
   try {
-    const { content, contentStructure, template, images } = req.body;
+    const { content, contentStructure, template, template_id, titre, chapo, images } = req.body;
     const imageSources = Array.isArray(images) ? images.filter(Boolean) : [];
 
+    // ✅ SPRINT 1.2: Support template_id OU template object (rétrocompatibilité)
+    let templateData = template;
+    if (template_id && !template) {
+      // Si template_id fourni mais pas template, le récupérer
+      const { data: fetchedTemplate } = await supabase
+        .from('indesign_templates')
+        .select('*')
+        .eq('id', template_id)
+        .single();
+      templateData = fetchedTemplate;
+    }
+
     // Validation
-    if (!contentStructure || !template) {
+    if (!contentStructure || (!template && !template_id)) {
       return res.status(400).json({
         success: false,
-        error: 'contentStructure and template are required'
+        error: 'contentStructure and (template or template_id) are required'
       });
     }
 
     const resolvedImages = imageSources.length > 0 ? imageSources : [PLACEHOLDER_IMAGE];
 
+    // ✅ SPRINT 1.2: Utiliser titre/chapo directs ou fallback sur contentStructure
+    const finalTitre = titre || contentStructure?.titre_principal || 'Sans titre';
+    const finalChapo = chapo || contentStructure?.chapo || '';
+
     console.log('[Magazine] Starting generation...');
-    console.log('[Magazine] Template:', template.name);
+    console.log('[Magazine] Template:', templateData?.name || template_id);
+    console.log('[Magazine] Titre:', finalTitre.substring(0, 50));
     console.log('[Magazine] Images:', resolvedImages.length);
 
     // Créer un enregistrement dans la base de données
@@ -41,7 +58,7 @@ router.post('/generate', async (req, res, next) => {
         .insert([{
           id: generationId,
           content_structure: contentStructure,
-          template_id: template.id,
+          template_id: templateData?.id || template_id, // ✅ Support des deux
           image_urls: resolvedImages,
           status: 'processing',
           created_at: new Date().toISOString()
@@ -56,11 +73,13 @@ router.post('/generate', async (req, res, next) => {
     }
 
     // Appeler Flask pour génération InDesign
+    // ✅ SPRINT 1.2: Utiliser les vraies données
     const result = await generateMagazine({
-      titre: contentStructure.titre_principal,
+      titre: finalTitre,
       contentStructure,
-      subtitle: contentStructure.chapo,
-      template,
+      subtitle: finalChapo,
+      template: templateData,
+      template_id: template_id || templateData?.id,
       imageUrls: resolvedImages
     });
 

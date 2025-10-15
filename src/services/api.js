@@ -121,14 +121,25 @@ export const magazineAPI = {
    * @returns {Promise<Object>} Résultat de génération
    */
   async generate({ content, contentStructure, template, images }) {
+    // ✅ SPRINT 1.2: Envoyer template_id et vraies données
+    const payload = {
+      content,
+      contentStructure,
+      template_id: template?.id || template?.template_id, // ✅ ID au lieu de tout l'objet
+      titre: contentStructure?.titre_principal || '', // ✅ Vraies données
+      chapo: contentStructure?.chapo || '', // ✅ Vraies données
+      images,
+    };
+    
+    console.log('[API] Génération magazine:', {
+      template_id: payload.template_id,
+      titre: payload.titre?.substring(0, 50),
+      chapo: payload.chapo?.substring(0, 50)
+    });
+    
     const data = await apiCall('/api/magazine/generate', {
       method: 'POST',
-      body: JSON.stringify({
-        content,
-        contentStructure,
-        template,
-        images,
-      }),
+      body: JSON.stringify(payload),
     });
     return {
       generationId: data.generationId,

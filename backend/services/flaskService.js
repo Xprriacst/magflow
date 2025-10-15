@@ -45,18 +45,25 @@ export async function generateMagazine({
   contentStructure,
   subtitle,
   template,
+  template_id,
   imageUrls
 }) {
   try {
     // Formatter le contenu en texte lisible
     const textContent = formatContentForInDesign(contentStructure);
     
+    // ✅ SPRINT 1.2: Utiliser template_id si fourni, sinon fallback sur template
+    const templateIdentifier = template_id || template?.id || template?.filename;
+    
     // Préparer les données form-urlencoded
     const params = new URLSearchParams({
       prompt: titre,
       text_content: textContent,
-      subtitle: subtitle || contentStructure.chapo,
-      template: template.filename,
+      subtitle: subtitle || contentStructure?.chapo || '',
+      titre: titre, // ✅ SPRINT 1.2: Envoyer vraies données
+      chapo: subtitle || contentStructure?.chapo || '', // ✅ SPRINT 1.2: Envoyer vraies données
+      template_id: templateIdentifier, // ✅ SPRINT 1.2: template_id au lieu de template
+      template: template?.filename || '', // Garder pour compatibilité
       image_urls: imageUrls.join(','),
       rectangle_index: '0'
     });
@@ -72,7 +79,8 @@ export async function generateMagazine({
     }
 
     console.log(`[Flask] Calling ${FLASK_API_URL}/api/create-layout-urls`);
-    console.log('[Flask] Template:', template.filename);
+    console.log('[Flask] Template ID:', templateIdentifier);
+    console.log('[Flask] Titre:', titre.substring(0, 50));
     console.log('[Flask] Images:', imageUrls.length);
 
     // Appel Flask
