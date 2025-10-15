@@ -9,6 +9,7 @@ const openai = new OpenAI({
 
 /**
  * Analyse la structure éditoriale d'un contenu
+ * EXTRACTION PURE - Ne reformule JAMAIS le contenu original
  * @param {string} content - Le contenu textuel à analyser
  * @returns {Promise<Object>} Structure éditoriale analysée
  */
@@ -19,11 +20,22 @@ export async function analyzeContentStructure(content) {
       messages: [
         {
           role: 'system',
-          content: `Tu es un expert en structuration éditoriale pour magazines. Analyse le contenu fourni et définis automatiquement la structure optimale (titre principal, chapô, sous-titres, sections, etc.). Sois précis et créatif dans tes suggestions.`
+          content: `Tu es un analyseur de structure éditoriale. 
+Ton rôle est d'IDENTIFIER et EXTRAIRE les différentes parties d'un article, SANS RIEN REFORMULER.
+
+RÈGLES STRICTES - IMPÉRATIF :
+1. NE PAS reformuler, paraphraser ou modifier le texte original
+2. EXTRAIRE tel quel les titres, sous-titres, paragraphes existants
+3. IDENTIFIER la structure (introduction, corps, conclusion) en préservant le texte exact
+4. PRÉSERVER le style, le ton et les mots exacts de l'auteur
+5. Si un titre n'existe pas, extraire les premiers mots significatifs TELS QUELS
+6. Copier-coller le texte original sans aucune modification
+
+Ta mission : ANALYSER la structure, PAS créer du contenu.`
         },
         {
           role: 'user',
-          content: `Analyse ce contenu et définis la structure éditoriale optimale:\n\n${content}`
+          content: `EXTRAIT tel quel la structure de ce contenu (NE RIEN REFORMULER) :\n\n${content}`
         }
       ],
       response_format: {
@@ -34,33 +46,63 @@ export async function analyzeContentStructure(content) {
           schema: {
             type: 'object',
             properties: {
-              titre_principal: { type: 'string' },
-              chapo: { type: 'string' },
+              titre_principal: { 
+                type: 'string',
+                description: 'EXTRAIRE tel quel le titre existant dans le texte'
+              },
+              chapo: { 
+                type: 'string',
+                description: 'EXTRAIRE tel quel le premier paragraphe ou introduction'
+              },
               sous_titres: {
                 type: 'array',
-                items: { type: 'string' }
+                items: { type: 'string' },
+                description: 'EXTRAIRE tels quels les sous-titres présents dans le texte'
               },
               sections: {
                 type: 'array',
                 items: {
                   type: 'object',
                   properties: {
-                    titre: { type: 'string' },
-                    contenu: { type: 'string' },
+                    titre: { 
+                      type: 'string',
+                      description: 'EXTRAIRE tel quel le titre de section'
+                    },
+                    contenu: { 
+                      type: 'string',
+                      description: 'EXTRAIRE tel quel le contenu sans modification'
+                    },
                     type: { 
                       type: 'string', 
-                      enum: ['introduction', 'corps', 'conclusion', 'citation', 'encadre'] 
+                      enum: ['introduction', 'corps', 'conclusion', 'citation', 'encadre'],
+                      description: 'Type de section identifié'
                     }
                   },
                   required: ['titre', 'contenu', 'type'],
                   additionalProperties: false
-                }
+                },
+                description: 'Sections extraites du texte original'
               },
               mots_cles: {
                 type: 'array',
-                items: { type: 'string' }
+                items: { type: 'string' },
+                description: 'Mots-clés principaux identifiés (peuvent être extraits ou inférés)'
               },
-              categorie_suggeree: { type: 'string' },
+              categorie_suggeree: { 
+                type: 'string',
+                description: 'Catégorie éditoriale suggérée'
+              },
+              structure_detectee: {
+                type: 'object',
+                properties: {
+                  nombre_sections: { type: 'number' },
+                  nombre_mots: { type: 'number' },
+                  images_mentionnees: { type: 'number' }
+                },
+                required: ['nombre_sections', 'nombre_mots', 'images_mentionnees'],
+                additionalProperties: false,
+                description: 'Métadonnées sur la structure détectée'
+              },
               longueur_estimee: { type: 'number' },
               temps_lecture: { type: 'number' },
               niveau_complexite: { 
@@ -75,6 +117,7 @@ export async function analyzeContentStructure(content) {
               'sections', 
               'mots_cles', 
               'categorie_suggeree',
+              'structure_detectee',
               'longueur_estimee',
               'temps_lecture',
               'niveau_complexite'
