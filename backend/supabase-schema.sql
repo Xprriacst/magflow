@@ -119,7 +119,7 @@ INSERT INTO indesign_templates (
   'Art & Culture',
   'simple',
   ARRAY['Art & Culture', 'Design', 'Photographie'],
-  '/Users/alexandreerrasti/Library/Mobile Documents/com~apple~CloudDocs/magflow/Indesign automation v1/indesign_templates/template-mag-simple-1808.indt'
+  '/Users/alexandreerrasti/Documents/magflow/Indesign automation v1/indesign_templates/template-mag-simple-1808.indt'
 ),
 (
   'Magazine Artistique Avancé',
@@ -130,7 +130,7 @@ INSERT INTO indesign_templates (
   'Art & Culture',
   'moyen',
   ARRAY['Art & Culture', 'Design', 'Magazine', 'Editorial'],
-  '/Users/alexandreerrasti/Library/Mobile Documents/com~apple~CloudDocs/magflow/Indesign automation v1/indesign_templates/template-mag-simple-2-1808.indt'
+  '/Users/alexandreerrasti/Documents/magflow/Indesign automation v1/indesign_templates/template-mag-simple-2-1808.indt'
 ),
 (
   'Magazine Art - Page 1',
@@ -141,7 +141,7 @@ INSERT INTO indesign_templates (
   'Art & Culture',
   'complexe',
   ARRAY['Art & Culture', 'Design', 'Mode', 'Lifestyle'],
-  '/Users/alexandreerrasti/Library/Mobile Documents/com~apple~CloudDocs/magflow/Indesign automation v1/indesign_templates/Magazine art template page 1.indd'
+  '/Users/alexandreerrasti/Documents/magflow/Indesign automation v1/indesign_templates/Magazine art template page 1.indd'
 )
 ON CONFLICT (filename) DO UPDATE SET
   name = EXCLUDED.name,
