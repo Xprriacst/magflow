@@ -17,10 +17,35 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
+const devAllowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'http://localhost:4028'
+];
+
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? [process.env.FRONTEND_URL].filter(Boolean)
+  : devAllowedOrigins;
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? process.env.FRONTEND_URL
-    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://localhost:4028'],
+  origin(origin, callback) {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    const isAllowed =
+      allowedOrigins.includes(origin) ||
+      /^https?:\/\/127\.0\.0\.1(?::\d+)?$/.test(origin) ||
+      /^https?:\/\/localhost(?::\d+)?$/.test(origin);
+
+    if (isAllowed) {
+      return callback(null, true);
+    }
+
+    console.warn('[CORS] Origin not allowed:', origin);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 

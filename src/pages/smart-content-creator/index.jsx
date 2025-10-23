@@ -1,10 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/ui/Header';
 import Button from '../../components/ui/Button';
 import Icon from '../../components/AppIcon';
 import TextStructureEditor from './components/TextStructureEditor';
-import { analyzeContentStructure } from '../../services/contentAnalysisService';
+import { analyzeContentStructure, getTemplateRecommendations } from '../../services/contentAnalysisService';
 import { templatesAPI, magazineAPI } from '../../services/api';
 import { uploadImages } from '../../services/uploadService';
 
@@ -12,6 +12,7 @@ const SmartContentCreator = () => {
   const navigate = useNavigate();
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const recommendationSignatureRef = useRef(null);
 
   const [content, setContent] = useState('');
   const [images, setImages] = useState([]);
@@ -24,6 +25,17 @@ const SmartContentCreator = () => {
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [templatesError, setTemplatesError] = useState(null);
   const [contentError, setContentError] = useState(null);
+  const [recommendedTemplates, setRecommendedTemplates] = useState([]);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
+  const [recommendationsError, setRecommendationsError] = useState(null);
+
+  const templatesCount = Array.isArray(availableTemplates) ? availableTemplates.length : 0;
+  const imageCount = Array.isArray(images) ? images.length : 0;
+  const topRecommendationScore = typeof recommendedTemplates?.[0]?.score === 'number'
+    ? Math.round(recommendedTemplates[0].score)
+    : typeof recommendedTemplates?.[0]?.recommendationScore === 'number'
+      ? Math.round(recommendedTemplates[0].recommendationScore)
+      : null;
 
   // Load templates from API on component mount
   useEffect(() => {
@@ -47,6 +59,156 @@ const SmartContentCreator = () => {
 
   const retryLoadTemplates = () => {
     loadTemplates();
+  };
+
+  const fetchRecommendations = useCallback(async (structure, imageCount) => {
+    if (!structure) return;
+    if (!Array.isArray(availableTemplates) || availableTemplates.length === 0) return;
+
+    setIsLoadingRecommendations(true);
+    setRecommendationsError(null);
+
+    const buildJustification = (templateMeta) => {
+      const reasons = [];
+      if (
+        structure?.categorie_suggeree &&
+        Array.isArray(templateMeta?.recommended_for) &&
+        templateMeta.recommended_for.includes(structure.categorie_suggeree)
+      ) {
+        reasons.push(`adapté à la catégorie ${structure.categorie_suggeree}`);
+      }
+      if (typeof templateMeta?.image_slots === 'number' && imageCount > 0) {
+        reasons.push(`${templateMeta.image_slots} emplacements pour vos ${imageCount} image(s)`);
+      }
+      if (templateMeta?.style && structure?.niveau_complexite) {
+        reasons.push(`style ${templateMeta.style} proche de la complexité ${structure.niveau_complexite}`);
+      }
+      if (typeof templateMeta?.score === 'number') {
+        reasons.push(`score IA ${Math.round(templateMeta.score)}/100`);
+      }
+      return reasons.length > 0
+        ? `Choisi car ${reasons.join(' · ')}.`
+        : 'Sélectionné selon l’analyse du contenu et des images.';
+    };
+
+    const getTemplateKey = (template) =>
+      template?.id || template?.template_id || template?.filename || template?.name;
+
+    try {
+      const recommendations = await getTemplateRecommendations(structure, imageCount);
+      const topRecommendation = Array.isArray(recommendations) && recommendations.length > 0
+        ? recommendations[0]
+        : null;
+
+      setRecommendedTemplates(topRecommendation ? [topRecommendation] : []);
+
+      setAvailableTemplates((prevTemplates = []) => {
+        if (!prevTemplates || prevTemplates.length === 0) {
+          return prevTemplates;
+        }
+        const recommendedKey = topRecommendation ? getTemplateKey(topRecommendation) : null;
+
+        const recommendationMap = {};
+        if (topRecommendation) {
+          const key = getTemplateKey(topRecommendation);
+          if (key) {
+            recommendationMap[key] = topRecommendation;
+          }
+        }
+
+        const updatedTemplates = prevTemplates.map((template) => {
+          const key = getTemplateKey(template);
+          const match = key ? recommendationMap[key] : null;
+
+          if (!match) {
+            return {
+              ...template,
+              isRecommended: false,
+              recommendationScore: null,
+              recommendationReason: null
+            };
+          }
+
+          return {
+            ...template,
+            isRecommended: true,
+            recommendationScore: typeof match.score === 'number' ? Math.round(match.score) : null,
+            recommendationReason: match.justification || buildJustification(match)
+          };
+        });
+
+        const missingTemplates = topRecommendation
+          ? (() => {
+              const key = getTemplateKey(topRecommendation);
+              const exists = key && prevTemplates.some((template) => getTemplateKey(template) === key);
+              if (exists) {
+                return [];
+              }
+              return [{
+                ...topRecommendation,
+                isRecommended: true,
+                recommendationScore: typeof topRecommendation.score === 'number' ? Math.round(topRecommendation.score) : null,
+                recommendationReason: topRecommendation.justification || buildJustification(topRecommendation)
+              }];
+            })()
+          : [];
+
+        const mergedTemplates = missingTemplates.length > 0 ? [...updatedTemplates, ...missingTemplates] : updatedTemplates;
+
+        if (recommendedKey) {
+          mergedTemplates.sort((a, b) => {
+            const keyA = getTemplateKey(a);
+            const keyB = getTemplateKey(b);
+            const aIsRecommended = keyA === recommendedKey;
+            const bIsRecommended = keyB === recommendedKey;
+            if (aIsRecommended && !bIsRecommended) return -1;
+            if (!aIsRecommended && bIsRecommended) return 1;
+            return 0;
+          });
+        }
+
+        return mergedTemplates;
+      });
+    } catch (error) {
+      console.error('Error fetching recommendations:', error);
+      setRecommendationsError("Impossible de calculer les recommandations pour l'instant.");
+      setRecommendedTemplates([]);
+      setAvailableTemplates((prevTemplates = []) =>
+        prevTemplates.map((template) => ({
+          ...template,
+          isRecommended: false,
+          recommendationScore: null,
+          recommendationReason: null
+        }))
+      );
+    } finally {
+      setIsLoadingRecommendations(false);
+    }
+  }, [availableTemplates]);
+
+  useEffect(() => {
+    if (!showTemplateSelection) return;
+    if (!contentStructure) return;
+    if (templatesCount === 0) return;
+
+    const signature = JSON.stringify({
+      titre: contentStructure?.titre_principal,
+      categorie: contentStructure?.categorie_suggeree,
+      sections: Array.isArray(contentStructure?.sections) ? contentStructure.sections.length : 0,
+      longueur: contentStructure?.longueur_estimee,
+      complexite: contentStructure?.niveau_complexite,
+      imageCount
+    });
+
+    if (recommendationSignatureRef.current === signature) return;
+    recommendationSignatureRef.current = signature;
+
+    fetchRecommendations(contentStructure, imageCount);
+  }, [showTemplateSelection, contentStructure, templatesCount, imageCount, fetchRecommendations]);
+
+  const retryRecommendations = () => {
+    if (!contentStructure) return;
+    fetchRecommendations(contentStructure, imageCount);
   };
 
   // Handle text input changes
@@ -454,6 +616,46 @@ const SmartContentCreator = () => {
                       </div>
                     ) : (
                       <div className="space-y-4">
+                        {isLoadingRecommendations && (
+                          <div className="flex items-center justify-center py-6 text-indigo-600 text-sm">
+                            <Icon name="Loader" size={18} className="mr-2 animate-spin" />
+                            Analyse des templates en cours...
+                          </div>
+                        )}
+
+                        {recommendationsError && !isLoadingRecommendations && (
+                          <div className="p-4 border border-red-200 bg-red-50 rounded-xl text-sm text-red-700 flex items-start space-x-3">
+                            <Icon name="AlertTriangle" size={18} className="mt-0.5" />
+                            <div>
+                              <p className="font-medium">{recommendationsError}</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={retryRecommendations}
+                                className="mt-2 border-red-200 text-red-700 hover:bg-red-100"
+                              >
+                                <Icon name="RefreshCw" size={14} className="mr-2" />
+                                Relancer l’analyse
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {!isLoadingRecommendations && !recommendationsError && recommendedTemplates.length > 0 && (
+                          <div className="p-4 border border-indigo-200 bg-indigo-50 rounded-xl text-sm text-indigo-900">
+                            <div className="flex items-start space-x-3">
+                              <Icon name="Sparkles" size={18} className="text-indigo-500 mt-0.5" />
+                              <div>
+                                <p className="font-semibold">Recommandation IA disponible</p>
+                                <p className="text-indigo-800">
+                                  Nous avons identifié le template le plus adapté à votre contenu.
+                                  Score IA&nbsp;: {topRecommendationScore ?? '—'} / 100.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {availableTemplates.map((template) => {
                           const isSelected = selectedTemplate?.id === template.id;
                           return (
@@ -467,15 +669,27 @@ const SmartContentCreator = () => {
                               onClick={() => selectTemplate(template)}
                             >
                               {template.preview_image ? (
-                                <div className="aspect-[4/3] bg-gray-100">
+                                <div className="relative aspect-[4/3] bg-gray-100">
                                   <img 
                                     src={template.preview_image} 
                                     alt={`Aperçu ${template.name}`}
                                     className="w-full h-full object-cover"
                                   />
+                                  {template.isRecommended && (
+                                    <div className="absolute top-3 left-3 bg-indigo-500 text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center space-x-1 shadow">
+                                      <Icon name="Sparkles" size={14} />
+                                      <span>Recommandé</span>
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
-                                <div className="aspect-[4/3] bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex flex-col items-center justify-center p-6 relative overflow-hidden">
+                                <div className="relative aspect-[4/3] bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex flex-col items-center justify-center p-6 overflow-hidden">
+                                  {template.isRecommended && (
+                                    <div className="absolute top-3 left-3 bg-indigo-500 text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center space-x-1 shadow">
+                                      <Icon name="Sparkles" size={14} />
+                                      <span>Recommandé</span>
+                                    </div>
+                                  )}
                                   <div className="absolute inset-0 opacity-10">
                                     <div className="absolute top-4 left-4 w-24 h-32 bg-indigo-400 rounded-lg transform -rotate-12"></div>
                                     <div className="absolute bottom-4 right-4 w-32 h-24 bg-purple-400 rounded-lg transform rotate-6"></div>
@@ -538,6 +752,13 @@ const SmartContentCreator = () => {
                                         {tag}
                                       </span>
                                     ))}
+                                  </div>
+                                )}
+
+                                {template.isRecommended && template.recommendationReason && (
+                                  <div className="mt-3 p-3 bg-indigo-50 border border-indigo-100 rounded-lg text-xs text-indigo-900 flex items-start space-x-2">
+                                    <Icon name="Brain" size={14} className="mt-0.5 text-indigo-500" />
+                                    <span>{template.recommendationReason}</span>
                                   </div>
                                 )}
 
