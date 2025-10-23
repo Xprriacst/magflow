@@ -466,9 +466,25 @@ const SmartContentCreator = () => {
                               }`}
                               onClick={() => selectTemplate(template)}
                             >
-                              <div className="aspect-[4/3] bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-3xl font-semibold text-indigo-500">
-                                {template.name?.charAt(0) || 'T'}
-                              </div>
+                              {template.preview_image ? (
+                                <div className="aspect-[4/3] bg-gray-100">
+                                  <img 
+                                    src={template.preview_image} 
+                                    alt={`Aperçu ${template.name}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="aspect-[4/3] bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex flex-col items-center justify-center p-6 relative overflow-hidden">
+                                  <div className="absolute inset-0 opacity-10">
+                                    <div className="absolute top-4 left-4 w-24 h-32 bg-indigo-400 rounded-lg transform -rotate-12"></div>
+                                    <div className="absolute bottom-4 right-4 w-32 h-24 bg-purple-400 rounded-lg transform rotate-6"></div>
+                                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-pink-400 rounded-full"></div>
+                                  </div>
+                                  <Icon name="FileText" size={48} className="text-indigo-400 mb-3 relative z-10" />
+                                  <span className="text-2xl font-bold text-indigo-600 relative z-10">{template.name?.charAt(0) || 'M'}</span>
+                                </div>
+                              )}
 
                               <div className="p-4 space-y-3">
                                 <div className="flex items-start justify-between">
