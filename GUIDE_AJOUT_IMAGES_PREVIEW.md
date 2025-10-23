@@ -51,17 +51,38 @@ Les templates affichent seulement une lettre (M) au lieu d'une vraie image de pr
 
 ---
 
-## 📋 Étapes pour Ajouter les Vraies Images
+## ✅ Images Déjà Disponibles !
 
-### Étape 1: Créer les Captures d'Écran
+**Bonne nouvelle:** Les images de preview existent déjà dans le projet !
+
+### Images Actuelles
+
+**Template 2: Magazine Artistique Avancé**
+```
+/public/assets/images/Capture_d_ecran_2025-09-12_a_22.10.29-1757707887314.png
+```
+
+**Template 3: Magazine Art - Page 1**
+```
+/public/assets/images/Capture_d_ecran_2025-09-12_a_22.10.38-1757756150308.png
+```
+
+**Template 1: Magazine Artistique Simple**
+```
+⚠️ Pas encore d'image (à créer)
+```
+
+---
+
+## 📋 Étapes pour Ajouter les Vraies Images (Template 1)
+
+### Étape 1: Créer la Capture d'Écran du Template 1
 
 **Méthode recommandée:**
 
-1. **Ouvrir chaque template dans InDesign**
+1. **Ouvrir le template dans InDesign**
    ```
-   - template-mag-simple-1808.indt
-   - template-mag-simple-2-1808.indt
-   - Magazine art template page 1.indd
+   template-mag-simple-1808.indt
    ```
 
 2. **Faire une capture d'écran**
