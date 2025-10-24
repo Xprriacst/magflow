@@ -188,4 +188,97 @@ export async function recommendTemplates(contentStructure, imageCount, available
   }
 }
 
-export default { analyzeContentStructure, recommendTemplates };
+/**
+ * Enrichit les métadonnées d'un template avec l'IA
+ * @param {Object} templateData - Données extraites du template
+ * @returns {Promise<Object>} Métadonnées enrichies
+ */
+export async function enrichTemplateMetadata(templateData) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: `Tu es un expert en design éditorial et templates InDesign.
+Analyse les métadonnées d'un template et suggère des catégories et styles appropriés.
+
+RÈGLES:
+- category: Une catégorie principale parmi: "Art & Culture", "Tech", "Business", "Lifestyle", "Mode", "Sport", "Science"
+- style: Le niveau de complexité parmi: "simple", "moyen", "complexe"
+- recommended_for: Array de 2-4 catégories pour lesquelles ce template est adapté
+- description: Description courte et attractive (max 100 caractères)
+
+Base ton analyse sur:
+- Le nombre d'emplacements images (peu = simple, beaucoup = complexe)
+- Les placeholders de texte (structure éditoriale)
+- Les polices utilisées (serif = classique, sans-serif = moderne)
+- Le nombre de pages (1-2 = simple, 3+ = complexe)`
+        },
+        {
+          role: 'user',
+          content: `Analyse ce template InDesign:
+
+Fichier: ${templateData.filename}
+Emplacements images: ${templateData.imageSlots}
+Pages: ${templateData.pageCount}
+Placeholders texte: ${JSON.stringify(templateData.textPlaceholders)}
+Polices: ${JSON.stringify(templateData.fonts?.slice(0, 5))}
+
+Métadonnées InDesign:
+${JSON.stringify(templateData.metadata, null, 2)}`
+        }
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'template_metadata',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              category: {
+                type: 'string',
+                description: 'Catégorie principale du template'
+              },
+              style: {
+                type: 'string',
+                enum: ['simple', 'moyen', 'complexe'],
+                description: 'Niveau de complexité'
+              },
+              recommended_for: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Catégories recommandées (2-4 éléments)'
+              },
+              description: {
+                type: 'string',
+                description: 'Description courte et attractive'
+              }
+            },
+            required: ['category', 'style', 'recommended_for', 'description'],
+            additionalProperties: false
+          }
+        }
+      }
+    });
+
+    const enriched = JSON.parse(response.choices[0].message.content);
+    
+    console.log(`[OpenAI] Enriched template ${templateData.filename}:`, enriched);
+    
+    return enriched;
+  } catch (error) {
+    console.error('Error enriching template metadata:', error);
+    
+    // Fallback basique basé sur les données extraites
+    return {
+      category: 'Art & Culture',
+      style: templateData.imageSlots <= 2 ? 'simple' : templateData.imageSlots <= 4 ? 'moyen' : 'complexe',
+      recommended_for: ['Art & Culture', 'Design'],
+      description: `Template avec ${templateData.imageSlots} emplacements images`
+    };
+  }
+}
+
+export default { analyzeContentStructure, recommendTemplates, enrichTemplateMetadata };

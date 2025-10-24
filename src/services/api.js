@@ -105,6 +105,33 @@ export const templatesAPI = {
     });
     return data.template;
   },
+
+  /**
+   * Analyse tous les templates avec InDesign + IA
+   * @returns {Promise<Object>} Résultat de l'analyse
+   */
+  async analyzeAll() {
+    const data = await apiCall('/api/templates/analyze', {
+      method: 'POST',
+    });
+    return {
+      analyzed: data.analyzed,
+      updated: data.updated,
+      errors: data.errors || []
+    };
+  },
+
+  /**
+   * Analyse un template spécifique
+   * @param {string} templateId - ID du template
+   * @returns {Promise<Object>} Template mis à jour
+   */
+  async analyzeOne(templateId) {
+    const data = await apiCall(`/api/templates/${templateId}/analyze`, {
+      method: 'POST',
+    });
+    return data.template;
+  },
 };
 
 /**

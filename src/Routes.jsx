@@ -14,6 +14,7 @@ import TemplatePreview from './pages/template-preview';
 import RegisterPage from './pages/register';
 import GenerationLoading from './pages/generation-loading';
 import GenerationResult from './pages/generation-result';
+import TemplatesAdmin from './pages/admin/templates';
 
 const Routes = () => {
   return (
@@ -34,6 +35,7 @@ const Routes = () => {
         <Route path="/generation-loading" element={<GenerationLoading />} />
         <Route path="/generation-result" element={<GenerationResult />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/admin/templates" element={<TemplatesAdmin />} />
         <Route path="*" element={<NotFound />} />
       </RouterRoutes>
       </ErrorBoundary>

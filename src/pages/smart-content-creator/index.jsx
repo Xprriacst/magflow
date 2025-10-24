@@ -658,6 +658,11 @@ const SmartContentCreator = () => {
 
                         {availableTemplates.map((template) => {
                           const isSelected = selectedTemplate?.id === template.id;
+                          const previewSrc =
+                            template.preview_image ||
+                            template.preview_url ||
+                            template.previewImage ||
+                            null;
                           return (
                             <div
                               key={template.id}
@@ -668,10 +673,10 @@ const SmartContentCreator = () => {
                               }`}
                               onClick={() => selectTemplate(template)}
                             >
-                              {template.preview_image ? (
+                              {previewSrc ? (
                                 <div className="relative aspect-[4/3] bg-gray-100">
                                   <img 
-                                    src={template.preview_image} 
+                                    src={previewSrc} 
                                     alt={`Aperçu ${template.name}`}
                                     className="w-full h-full object-cover"
                                   />

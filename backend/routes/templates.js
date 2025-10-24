@@ -1,6 +1,7 @@
 import express from 'express';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient.js';
 import { recommendTemplates } from '../services/openaiService.js';
+import { analyzeAllTemplates, analyzeOneTemplate } from '../services/templateAnalyzer.js';
 import fallbackTemplates from '../data/templatesFallback.js';
 
 const getFallbackTemplates = () => fallbackTemplates.filter(template => template.is_active !== false);
@@ -210,6 +211,59 @@ router.post('/', async (req, res, next) => {
 
   } catch (error) {
     next(error);
+  }
+});
+
+/**
+ * POST /api/templates/analyze
+ * Analyse tous les templates avec InDesign + IA (admin)
+ */
+router.post('/analyze', async (req, res, next) => {
+  try {
+    console.log('[Templates] Starting full template analysis...');
+
+    const results = await analyzeAllTemplates();
+
+    res.json({
+      success: true,
+      analyzed: results.analyzed,
+      updated: results.updated,
+      errors: results.errors
+    });
+
+  } catch (error) {
+    console.error('[Templates] Analysis failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Failed to analyze templates. Check InDesign is running and accessible.'
+    });
+  }
+});
+
+/**
+ * POST /api/templates/:id/analyze
+ * Analyse un template spécifique (admin)
+ */
+router.post('/:id/analyze', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`[Templates] Analyzing template ${id}...`);
+
+    const template = await analyzeOneTemplate(id);
+
+    res.json({
+      success: true,
+      template
+    });
+
+  } catch (error) {
+    console.error(`[Templates] Analysis failed for template ${req.params.id}:`, error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 
