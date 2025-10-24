@@ -47,6 +47,8 @@ const Button = React.forwardRef(({
     iconSize = null,
     fullWidth = false,
     disabled = false,
+    leftIcon = null,
+    rightIcon = null,
     ...props
 }, ref) => {
     const Comp = asChild ? Slot : "button";
@@ -89,6 +91,40 @@ const Button = React.forwardRef(({
         }
     };
 
+    const renderCustomIcon = (icon, position) => {
+        if (!icon) return null;
+        if (React.isValidElement(icon)) {
+            return React.cloneElement(icon, {
+                className: cn(
+                    icon.props?.className,
+                    children && position === 'left' && "mr-2",
+                    children && position === 'right' && "ml-2"
+                )
+            });
+        }
+        return icon;
+    };
+
+    const renderLeftIcon = () => {
+        if (leftIcon !== null && leftIcon !== undefined) {
+            return renderCustomIcon(leftIcon, 'left');
+        }
+        if (iconName && iconPosition === 'left') {
+            return renderIcon();
+        }
+        return null;
+    };
+
+    const renderRightIcon = () => {
+        if (rightIcon !== null && rightIcon !== undefined) {
+            return renderCustomIcon(rightIcon, 'right');
+        }
+        if (iconName && iconPosition === 'right') {
+            return renderIcon();
+        }
+        return null;
+    };
+
     const renderFallbackButton = () => (
         <button
             className={cn(
@@ -100,9 +136,9 @@ const Button = React.forwardRef(({
             {...props}
         >
             {loading && <LoadingSpinner />}
-            {iconName && iconPosition === 'left' && renderIcon()}
+            {renderLeftIcon()}
             {children}
-            {iconName && iconPosition === 'right' && renderIcon()}
+            {renderRightIcon()}
         </button>
     );
 
@@ -121,9 +157,9 @@ const Button = React.forwardRef(({
             const content = (
                 <>
                     {loading && <LoadingSpinner />}
-                    {iconName && iconPosition === 'left' && renderIcon()}
+                    {renderLeftIcon()}
                     {child?.props?.children}
-                    {iconName && iconPosition === 'right' && renderIcon()}
+                    {renderRightIcon()}
                 </>
             );
 
@@ -154,9 +190,9 @@ const Button = React.forwardRef(({
             {...props}
         >
             {loading && <LoadingSpinner />}
-            {iconName && iconPosition === 'left' && renderIcon()}
+            {renderLeftIcon()}
             {children}
-            {iconName && iconPosition === 'right' && renderIcon()}
+            {renderRightIcon()}
         </Comp>
     );
 });
