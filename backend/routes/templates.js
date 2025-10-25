@@ -267,4 +267,77 @@ router.post('/:id/analyze', async (req, res, next) => {
   }
 });
 
+/**
+ * PUT /api/templates/:id/preview
+ * Met à jour l'image de preview d'un template (admin)
+ */
+router.put('/:id/preview', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { previewUrl } = req.body;
+
+    if (typeof previewUrl === 'undefined') {
+      return res.status(400).json({
+        success: false,
+        error: 'previewUrl is required'
+      });
+    }
+
+    const normalizedUrl =
+      previewUrl === null
+        ? null
+        : typeof previewUrl === 'string'
+          ? previewUrl.trim() || null
+          : previewUrl;
+
+    if (!isSupabaseConfigured) {
+      const template = fallbackTemplates.find(
+        (tpl) => tpl.id === id || tpl.filename === id
+      );
+
+      if (!template) {
+        return res.status(404).json({
+          success: false,
+          error: 'Template not found'
+        });
+      }
+
+      template.preview_url = normalizedUrl;
+
+      return res.json({
+        success: true,
+        template
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('indesign_templates')
+      .update({
+        preview_url: normalizedUrl,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Database error: ${error.message}`);
+    }
+
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        error: 'Template not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      template: data
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

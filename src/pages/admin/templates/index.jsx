@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../../components/ui/Header';
 import Button from '../../../components/ui/Button';
+import Input from '../../../components/ui/Input';
 import Icon from '../../../components/AppIcon';
 import { templatesAPI } from '../../../services/api';
+import { uploadImages } from '../../../services/uploadService';
 
 const TemplatesAdmin = () => {
   const navigate = useNavigate();
@@ -12,6 +14,9 @@ const TemplatesAdmin = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [previewEditor, setPreviewEditor] = useState(null);
+  const [previewError, setPreviewError] = useState(null);
+  const [updatingPreviewId, setUpdatingPreviewId] = useState(null);
 
   useEffect(() => {
     loadTemplates();
@@ -59,6 +64,137 @@ const TemplatesAdmin = () => {
       await loadTemplates();
     } catch (err) {
       setError(`Erreur: ${err.message}`);
+    }
+  };
+
+  const closePreviewEditor = () => {
+    setPreviewEditor(null);
+    setPreviewError(null);
+  };
+
+  const openPreviewEditor = (template) => {
+    if (previewEditor?.templateId === template.id) {
+      closePreviewEditor();
+      return;
+    }
+
+    setPreviewEditor({
+      templateId: template.id,
+      value: template.preview_url || ''
+    });
+    setPreviewError(null);
+    setSuccessMessage(null);
+  };
+
+  const handlePreviewInputChange = (event) => {
+    const { value } = event.target;
+    setPreviewEditor((prev) => (prev ? { ...prev, value } : prev));
+  };
+
+  const handleSavePreview = async () => {
+    if (!previewEditor?.templateId) {
+      return;
+    }
+
+    const templateId = previewEditor.templateId;
+    const normalizedValue = typeof previewEditor.value === 'string'
+      ? previewEditor.value.trim()
+      : '';
+
+    setUpdatingPreviewId(templateId);
+    setPreviewError(null);
+    setError(null);
+
+    try {
+      const updated = await templatesAPI.updatePreview(
+        templateId,
+        normalizedValue === '' ? null : normalizedValue
+      );
+
+      setTemplates((prevTemplates) =>
+        prevTemplates.map((tpl) =>
+          tpl.id === updated.id ? { ...tpl, ...updated } : tpl
+        )
+      );
+
+      setSuccessMessage(
+        normalizedValue
+          ? '✅ Image de preview mise à jour.'
+          : '🗑️ Image de preview supprimée.'
+      );
+      closePreviewEditor();
+    } catch (err) {
+      console.error('[TemplatesAdmin] Preview update failed:', err);
+      setPreviewError(err.message);
+      setError(`Erreur lors de la mise à jour de l'image: ${err.message}`);
+    } finally {
+      setUpdatingPreviewId(null);
+    }
+  };
+
+  const handleUploadPreview = async (templateId, fileList) => {
+    if (!fileList || fileList.length === 0) {
+      return;
+    }
+
+    const hasTemplate = templates.some((tpl) => tpl.id === templateId);
+    if (!hasTemplate) {
+      setPreviewError('Template introuvable.');
+      return;
+    }
+
+    setUpdatingPreviewId(templateId);
+    setPreviewError(null);
+    setError(null);
+
+    try {
+      const [uploadedUrl] = await uploadImages([fileList[0]]);
+
+      if (!uploadedUrl) {
+        throw new Error("Upload incomplet: aucune URL reçue.");
+      }
+
+      const updated = await templatesAPI.updatePreview(templateId, uploadedUrl);
+
+      setTemplates((prevTemplates) =>
+        prevTemplates.map((tpl) =>
+          tpl.id === updated.id ? { ...tpl, ...updated } : tpl
+        )
+      );
+
+      setSuccessMessage('✅ Image de preview mise à jour.');
+      closePreviewEditor();
+    } catch (err) {
+      console.error('[TemplatesAdmin] Preview upload failed:', err);
+      setPreviewError(err.message);
+      setError(`Impossible de mettre à jour l'image: ${err.message}`);
+    } finally {
+      setUpdatingPreviewId(null);
+    }
+  };
+
+  const handleRemovePreview = async (templateId) => {
+    setUpdatingPreviewId(templateId);
+    setPreviewError(null);
+    setError(null);
+
+    try {
+      const updated = await templatesAPI.updatePreview(templateId, null);
+
+      setTemplates((prevTemplates) =>
+        prevTemplates.map((tpl) =>
+          tpl.id === updated.id ? { ...tpl, ...updated } : tpl
+        )
+      );
+
+      setSuccessMessage('🗑️ Image de preview supprimée.');
+      closePreviewEditor();
+    } catch (err) {
+      console.error('[TemplatesAdmin] Preview removal failed:', err);
+      setPreviewError(err.message);
+      setError(`Impossible de supprimer l'image: ${err.message}`);
+    } finally {
+      setUpdatingPreviewId(null);
     }
   };
 
@@ -168,117 +304,237 @@ const TemplatesAdmin = () => {
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
-              {templates.map((template) => (
-                <div key={template.id} className="p-6 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-start gap-6">
-                    {/* Preview */}
-                    <div className="flex-shrink-0">
-                      {template.preview_url ? (
-                        <img
-                          src={template.preview_url}
-                          alt={template.name}
-                          className="w-32 h-24 object-cover rounded-lg border border-gray-200"
-                        />
-                      ) : (
-                        <div className="w-32 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center">
-                          <Icon name="FileText" size={32} className="text-indigo-400" />
-                        </div>
-                      )}
-                    </div>
+              {templates.map((template) => {
+                const isEditingPreview = previewEditor?.templateId === template.id;
+                const isUpdatingPreview = updatingPreviewId === template.id;
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                            {template.name}
-                          </h3>
-                          <p className="text-sm text-gray-600 mb-2">
-                            {template.description || 'Aucune description'}
-                          </p>
-                          <p className="text-xs text-gray-500 font-mono">
-                            {template.filename}
-                          </p>
-                        </div>
-                        <Button
-                          onClick={() => handleAnalyzeOne(template.id)}
-                          variant="secondary"
-                          size="sm"
-                          leftIcon={<Icon name="RefreshCw" size={14} />}
-                        >
-                          Analyser
-                        </Button>
+                return (
+                  <div key={template.id} className="p-6 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-start gap-6">
+                      {/* Preview */}
+                      <div className="flex-shrink-0">
+                        {template.preview_url ? (
+                          <img
+                            src={template.preview_url}
+                            alt={template.name}
+                            className="w-32 h-24 object-cover rounded-lg border border-gray-200"
+                          />
+                        ) : (
+                          <div className="w-32 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center">
+                            <Icon name="FileText" size={32} className="text-indigo-400" />
+                          </div>
+                        )}
                       </div>
 
-                      {/* Métadonnées */}
-                      <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <p className="text-xs text-gray-500 mb-1">Images</p>
-                          <p className="text-lg font-semibold text-gray-900">
-                            {template.image_slots ?? '?'}
-                          </p>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                              {template.name}
+                            </h3>
+                            <p className="text-sm text-gray-600 mb-2">
+                              {template.description || 'Aucune description'}
+                            </p>
+                            <p className="text-xs text-gray-500 font-mono">
+                              {template.filename}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              onClick={() => handleAnalyzeOne(template.id)}
+                              variant="secondary"
+                              size="sm"
+                              leftIcon={<Icon name="RefreshCw" size={14} />}
+                            >
+                              Analyser
+                            </Button>
+                            <Button
+                              onClick={() => openPreviewEditor(template)}
+                              variant="outline"
+                              size="sm"
+                              disabled={isUpdatingPreview}
+                              leftIcon={<Icon name="Image" size={14} />}
+                            >
+                              {isEditingPreview
+                                ? 'Fermer'
+                                : template.preview_url
+                                  ? "Modifier l'image"
+                                  : 'Ajouter une image'}
+                            </Button>
+                          </div>
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <p className="text-xs text-gray-500 mb-1">Catégorie</p>
-                          <p className="text-sm font-medium text-gray-900">
-                            {template.category || 'Non définie'}
-                          </p>
+
+                        {/* Métadonnées */}
+                        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="bg-gray-50 rounded-lg p-3">
+                            <p className="text-xs text-gray-500 mb-1">Images</p>
+                            <p className="text-lg font-semibold text-gray-900">
+                              {template.image_slots ?? '?'}
+                            </p>
+                          </div>
+                          <div className="bg-gray-50 rounded-lg p-3">
+                            <p className="text-xs text-gray-500 mb-1">Catégorie</p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {template.category || 'Non définie'}
+                            </p>
+                          </div>
+                          <div className="bg-gray-50 rounded-lg p-3">
+                            <p className="text-xs text-gray-500 mb-1">Style</p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {template.style || 'Non défini'}
+                            </p>
+                          </div>
+                          <div className="bg-gray-50 rounded-lg p-3">
+                            <p className="text-xs text-gray-500 mb-1">Statut</p>
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                              template.is_active
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {template.is_active ? 'Actif' : 'Inactif'}
+                            </span>
+                          </div>
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <p className="text-xs text-gray-500 mb-1">Style</p>
-                          <p className="text-sm font-medium text-gray-900">
-                            {template.style || 'Non défini'}
-                          </p>
-                        </div>
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <p className="text-xs text-gray-500 mb-1">Statut</p>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            template.is_active
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {template.is_active ? 'Actif' : 'Inactif'}
-                          </span>
-                        </div>
+
+                        {/* Placeholders */}
+                        {template.placeholders && template.placeholders.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-xs text-gray-500 mb-2">Placeholders détectés:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {template.placeholders.map((placeholder, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-mono"
+                                >
+                                  {placeholder}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Recommended for */}
+                        {template.recommended_for && template.recommended_for.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-xs text-gray-500 mb-2">Recommandé pour:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {template.recommended_for.map((category, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs"
+                                >
+                                  {category}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {isEditingPreview && (
+                          <div className="mt-6 border border-indigo-100 bg-indigo-50/60 rounded-lg p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <h4 className="text-sm font-semibold text-indigo-900">
+                                  Image de preview
+                                </h4>
+                                <p className="text-xs text-indigo-700">
+                                  Importez un visuel ou renseignez une URL publique.
+                                </p>
+                              </div>
+                              {isUpdatingPreview && (
+                                <div className="flex items-center gap-2 text-xs text-indigo-600 font-medium">
+                                  <Icon name="Loader" size={14} className="animate-spin" />
+                                  <span>Mise à jour...</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-4 grid gap-4 md:grid-cols-2">
+                              <div>
+                                <p className="text-xs font-medium text-indigo-800 mb-2">
+                                  Aperçu actuel
+                                </p>
+                                {template.preview_url ? (
+                                  <img
+                                    src={template.preview_url}
+                                    alt={template.name}
+                                    className="w-full max-w-xs h-36 object-cover rounded-md border border-indigo-200 shadow-sm"
+                                  />
+                                ) : (
+                                  <div className="h-36 max-w-xs bg-white/70 border border-dashed border-indigo-300 rounded-md flex items-center justify-center text-xs text-indigo-500">
+                                    Aucune image définie
+                                  </div>
+                                )}
+                              </div>
+                              <div className="space-y-4">
+                                <Input
+                                  label="URL de l'image"
+                                  placeholder="https://..."
+                                  value={previewEditor?.value || ''}
+                                  onChange={handlePreviewInputChange}
+                                  disabled={isUpdatingPreview}
+                                  description="Collez une URL (Supabase, CDN, site externe)"
+                                />
+                                <div>
+                                  <label className="block text-xs font-medium text-indigo-800 mb-2">
+                                    Importer une image (PNG, JPG, GIF, WebP)
+                                  </label>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(event) => {
+                                      handleUploadPreview(template.id, event.target.files);
+                                      event.target.value = '';
+                                    }}
+                                    disabled={isUpdatingPreview}
+                                    className="block w-full text-xs text-indigo-900 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200"
+                                  />
+                                  <p className="mt-1 text-[11px] text-indigo-600">
+                                    Taille max 10 Mo. L'upload enregistre l'image automatiquement.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            {previewError && (
+                              <p className="mt-3 text-sm text-red-600">{previewError}</p>
+                            )}
+                            <div className="mt-4 flex flex-wrap items-center gap-3">
+                              <Button
+                                onClick={handleSavePreview}
+                                size="sm"
+                                disabled={isUpdatingPreview}
+                                loading={isUpdatingPreview}
+                                leftIcon={<Icon name="Save" size={14} />}
+                              >
+                                Enregistrer l'URL
+                              </Button>
+                              <Button
+                                onClick={closePreviewEditor}
+                                variant="ghost"
+                                size="sm"
+                                disabled={isUpdatingPreview}
+                              >
+                                Annuler
+                              </Button>
+                              {template.preview_url && (
+                                <Button
+                                  onClick={() => handleRemovePreview(template.id)}
+                                  variant="danger"
+                                  size="sm"
+                                  disabled={isUpdatingPreview}
+                                  leftIcon={<Icon name="Trash2" size={14} />}
+                                >
+                                  Supprimer l'image
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-
-                      {/* Placeholders */}
-                      {template.placeholders && template.placeholders.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-xs text-gray-500 mb-2">Placeholders détectés:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {template.placeholders.map((placeholder, idx) => (
-                              <span
-                                key={idx}
-                                className="inline-flex items-center px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-mono"
-                              >
-                                {placeholder}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Recommended for */}
-                      {template.recommended_for && template.recommended_for.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-xs text-gray-500 mb-2">Recommandé pour:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {template.recommended_for.map((category, idx) => (
-                              <span
-                                key={idx}
-                                className="inline-flex items-center px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs"
-                              >
-                                {category}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

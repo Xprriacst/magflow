@@ -107,6 +107,20 @@ export const templatesAPI = {
   },
 
   /**
+   * Met à jour l'image de preview d'un template (admin)
+   * @param {string} templateId - ID du template
+   * @param {string|null} previewUrl - Nouvelle URL ou null pour retirer l'image
+   * @returns {Promise<Object>} Template mis à jour
+   */
+  async updatePreview(templateId, previewUrl) {
+    const data = await apiCall(`/api/templates/${templateId}/preview`, {
+      method: 'PUT',
+      body: JSON.stringify({ previewUrl }),
+    });
+    return data.template;
+  },
+
+  /**
    * Analyse tous les templates avec InDesign + IA
    * @returns {Promise<Object>} Résultat de l'analyse
    */
