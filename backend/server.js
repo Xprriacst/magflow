@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import contentRoutes from './routes/content.js';
 import templatesRoutes from './routes/templates.js';
 import magazineRoutes from './routes/magazine.js';
@@ -14,7 +16,82 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 3001;
+
+// Socket.io pour la communication avec les Desktop Agents
+const io = new Server(httpServer, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
+
+// Store des agents connectés (userId -> socketId)
+const connectedAgents = new Map();
+
+// Gestion des connexions WebSocket
+io.on('connection', (socket) => {
+  console.log('🔌 Agent connecté:', socket.id);
+  
+  // Enregistrement de l'agent
+  socket.on('agent:register', (data) => {
+    const { agentId, userId, platform, indesignVersion } = data;
+    console.log(`✅ Agent enregistré: ${agentId} (${platform}, ${indesignVersion})`);
+    
+    // Stocker l'association userId -> socket
+    if (userId) {
+      connectedAgents.set(userId, {
+        socketId: socket.id,
+        agentId,
+        platform,
+        indesignVersion,
+        connectedAt: new Date()
+      });
+    }
+    
+    socket.agentId = agentId;
+    socket.userId = userId;
+  });
+  
+  // Mise à jour du statut d'un job
+  socket.on('job:status', (data) => {
+    console.log(`📊 Job ${data.jobId}: ${data.status}`);
+    // TODO: Mettre à jour en base de données
+  });
+  
+  // Job terminé
+  socket.on('job:complete', (data) => {
+    console.log(`✅ Job ${data.jobId} terminé:`, data.success ? 'Succès' : 'Erreur');
+    // TODO: Notifier le frontend, stocker le résultat
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('❌ Agent déconnecté:', socket.id);
+    if (socket.userId) {
+      connectedAgents.delete(socket.userId);
+    }
+  });
+});
+
+// Fonction pour envoyer un job à un agent
+export function sendJobToAgent(userId, job) {
+  const agent = connectedAgents.get(userId);
+  if (agent) {
+    io.to(agent.socketId).emit('job:generate', job);
+    return true;
+  }
+  return false;
+}
+
+// Fonction pour vérifier si un agent est connecté
+export function isAgentConnected(userId) {
+  return connectedAgents.has(userId);
+}
+
+// Exposer io pour les routes
+app.set('io', io);
+app.set('connectedAgents', connectedAgents);
 
 // Middleware
 const devAllowedOrigins = [
@@ -88,12 +165,13 @@ app.use((req, res) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server with WebSocket support
+httpServer.listen(PORT, () => {
   console.log(`\n🚀 MagFlow Backend démarré`);
   console.log(`📡 Port: ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health\n`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔌 WebSocket: ws://localhost:${PORT}\n`);
 });
 
 export default app;

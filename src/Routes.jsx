@@ -3,6 +3,10 @@ import { BrowserRouter, Routes as RouterRoutes, Route } from "react-router-dom";
 import ScrollToTop from "components/ScrollToTop";
 import ErrorBoundary from "components/ErrorBoundary";
 import NotFound from "pages/NotFound";
+import { AuthProvider } from './contexts/AuthContext';
+import AuthLogin from './pages/auth/Login';
+import AuthSignup from './pages/auth/Signup';
+import AuthCallback from './pages/auth/Callback';
 import Login from './pages/login';
 import ContentEditor from './pages/content-editor';
 import SmartContentCreator from './pages/smart-content-creator';
@@ -19,12 +23,16 @@ import TemplatesAdmin from './pages/admin/templates';
 const Routes = () => {
   return (
     <BrowserRouter>
+      <AuthProvider>
       <ErrorBoundary>
       <ScrollToTop />
       <RouterRoutes>
         {/* Define your route here */}
         <Route path="/" element={<SmartContentCreator />} />
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<AuthLogin />} />
+        <Route path="/signup" element={<AuthSignup />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/old-login" element={<Login />} />
         <Route path="/content-editor" element={<ContentEditor />} />
         <Route path="/smart-content-creator" element={<SmartContentCreator />} />
         <Route path="/template-gallery" element={<TemplateGallery />} />
@@ -39,6 +47,7 @@ const Routes = () => {
         <Route path="*" element={<NotFound />} />
       </RouterRoutes>
       </ErrorBoundary>
+      </AuthProvider>
     </BrowserRouter>
   );
 };
