@@ -72,16 +72,49 @@ router.post('/generate', async (req, res, next) => {
       console.warn('[Magazine] Supabase not configured. Skipping generation logging.');
     }
 
-    // Appeler Flask pour génération InDesign
-    // ✅ SPRINT 1.2: Utiliser les vraies données
-    const result = await generateMagazine({
-      titre: finalTitre,
-      contentStructure,
-      subtitle: finalChapo,
-      template: templateData,
-      template_id: template_id || templateData?.id,
-      imageUrls: resolvedImages
-    });
+    // Vérifier si un agent est connecté
+    const io = req.app.get('io');
+    const connectedAgents = req.app.get('connectedAgents');
+    const hasConnectedAgent = connectedAgents && connectedAgents.size > 0;
+    
+    let result;
+    
+    if (hasConnectedAgent) {
+      // ✅ Envoyer le job à l'agent via WebSocket
+      console.log('[Magazine] Agent connecté - envoi du job via WebSocket');
+      
+      const job = {
+        id: generationId,
+        template_id: template_id || templateData?.id,
+        template_name: templateData?.name || 'Template',
+        template_path: templateData?.file_path,
+        titre: finalTitre,
+        chapo: finalChapo,
+        images: resolvedImages,
+        contentStructure
+      };
+      
+      // Envoyer à tous les agents connectés (pour l'instant)
+      io.emit('job:new', job);
+      
+      // Répondre immédiatement (le job est en cours)
+      result = {
+        projectId: generationId,
+        status: 'processing',
+        message: 'Job envoyé à l\'agent local'
+      };
+    } else {
+      // Fallback: appeler Flask
+      console.log('[Magazine] Pas d\'agent connecté - utilisation Flask');
+      result = await generateMagazine({
+        titre: finalTitre,
+        contentStructure,
+        subtitle: finalChapo,
+        template: templateData,
+        template_id: template_id || templateData?.id,
+        imageUrls: resolvedImages
+      });
+    }
 
     // Mettre à jour le statut
     if (isSupabaseConfigured && !dbError) {
