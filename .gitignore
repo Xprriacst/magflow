@@ -1,8 +1,24 @@
-# Dependencies
+# System
+.DS_Store
+*.log
+Thumbs.db
+
+# Node
 node_modules/
+package-lock.json
+npm-debug.log*
+
+# Python
 venv/
 env/
 ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
 
 # Environment files
 .env
@@ -10,8 +26,6 @@ ENV/
 .env.*.local
 
 # Logs
-*.log
-npm-debug.log*
 logs/
 backend.log
 flask.log
@@ -25,27 +39,31 @@ frontend.log
 # Build outputs
 dist/
 build/
-*.egg-info/
+/build
+/dist
+*.min.js
 
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
-.DS_Store
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
 
 # Uploads and temporary files
 uploads/
 output/
 indesign_templates/
+*.indd
+*.idml
 
-# OS
-.DS_Store
-Thumbs.db
+# Test results
+test-results/
+playwright-report/
+
+# Vite
+vite.config.*s.*
+.vite/
+
+# Other
+Indesign automation v1

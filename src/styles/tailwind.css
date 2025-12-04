@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Core Colors */
+    --color-background: #FAFBFC; /* gray-50 */
+    --color-foreground: #2C3E50; /* slate-800 */
+    --color-card: #FFFFFF; /* white */
+    --color-card-foreground: #2C3E50; /* slate-800 */
+    --color-popover: #FFFFFF; /* white */
+    --color-popover-foreground: #2C3E50; /* slate-800 */
+    --color-muted: #F8F9FA; /* gray-100 */
+    --color-muted-foreground: #7F8C8D; /* gray-500 */
+    --color-border: rgba(0, 0, 0, 0.1); /* black-10 */
+    --color-input: #FFFFFF; /* white */
+    --color-ring: #2C3E50; /* slate-800 */
+
+    /* Brand Colors */
+    --color-primary: #2C3E50; /* slate-800 */
+    --color-primary-foreground: #FFFFFF; /* white */
+    --color-secondary: #34495E; /* slate-700 */
+    --color-secondary-foreground: #FFFFFF; /* white */
+    --color-accent: #E67E22; /* orange-600 */
+    --color-accent-foreground: #FFFFFF; /* white */
+
+    /* Status Colors */
+    --color-success: #27AE60; /* green-600 */
+    --color-success-foreground: #FFFFFF; /* white */
+    --color-warning: #F39C12; /* yellow-500 */
+    --color-warning-foreground: #FFFFFF; /* white */
+    --color-error: #E74C3C; /* red-500 */
+    --color-error-foreground: #FFFFFF; /* white */
+    --color-destructive: #E74C3C; /* red-500 */
+    --color-destructive-foreground: #FFFFFF; /* white */
+
+    /* Radius */
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
