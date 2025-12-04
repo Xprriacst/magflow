@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+venv/
+env/
+ENV/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+backend.log
+flask.log
+frontend.log
+
+# PID files
+.backend.pid
+.flask.pid
+.frontend.pid
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Uploads and temporary files
+uploads/
+output/
+indesign_templates/
+
+# OS
+.DS_Store
+Thumbs.db
