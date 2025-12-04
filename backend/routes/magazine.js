@@ -19,7 +19,7 @@ router.post('/generate', async (req, res, next) => {
 
     // ✅ SPRINT 1.2: Support template_id OU template object (rétrocompatibilité)
     let templateData = template;
-    if (template_id && !template) {
+    if (template_id && !template && isSupabaseConfigured && supabase) {
       // Si template_id fourni mais pas template, le récupérer
       const { data: fetchedTemplate } = await supabase
         .from('indesign_templates')
