@@ -358,16 +358,31 @@
       
       const email = document.getElementById('email').value;
       const password = document.getElementById('password').value;
+      const submitBtn = loginForm.querySelector('button[type="submit"]');
       
       errorMessage.classList.add('hidden');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Connexion...';
       
-      const result = await ipcRenderer.invoke('login', { email, password });
+      console.log('[Agent UI] Tentative de connexion:', email);
       
-      if (result.success) {
-        showDashboard({ user: result.user, connected: true });
-      } else {
-        errorMessage.textContent = result.error;
+      try {
+        const result = await ipcRenderer.invoke('login', { email, password });
+        console.log('[Agent UI] Résultat login:', result);
+        
+        if (result.success) {
+          showDashboard({ user: result.user, connected: true });
+        } else {
+          errorMessage.textContent = result.error || 'Erreur de connexion';
+          errorMessage.classList.remove('hidden');
+        }
+      } catch (err) {
+        console.error('[Agent UI] Erreur:', err);
+        errorMessage.textContent = 'Erreur de connexion au serveur';
         errorMessage.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Se connecter';
       }
     });
     

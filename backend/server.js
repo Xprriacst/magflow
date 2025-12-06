@@ -7,6 +7,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import contentRoutes from './routes/content.js';
 import templatesRoutes from './routes/templates.js';
+import templateUploadRoutes from './routes/templateUpload.js';
 import magazineRoutes from './routes/magazine.js';
 import uploadRoutes from './routes/upload.js';
 import authRoutes from './routes/auth.js';
@@ -148,6 +149,7 @@ app.get('/health', (req, res) => {
 // Routes
 app.use('/api/content', contentRoutes);
 app.use('/api/templates', templatesRoutes);
+app.use('/api/templates', templateUploadRoutes); // Upload routes under /api/templates
 app.use('/api/magazine', magazineRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/auth', authRoutes);

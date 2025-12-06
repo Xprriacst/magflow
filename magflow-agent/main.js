@@ -6,11 +6,13 @@ const { execSync, spawn } = require('child_process');
 const fs = require('fs');
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
+const templateSync = require('./services/templateSync');
 
 // Configuration
 const store = new Store();
 const BACKEND_URL = process.env.MAGFLOW_BACKEND || 'https://magflow.onrender.com';
 const LOCAL_FLASK_PORT = 5003;
+let templatesSynced = false;
 
 let mainWindow = null;
 let tray = null;
@@ -203,9 +205,15 @@ async function executeJob(job) {
   const chapo = job.chapo || '';
   const images = job.images || [];
   const templateId = job.template_id;
-  const templatePath = job.template_path;
   const templateName = job.template_name;
   const content = job.contentStructure?.corps_article || '';
+  
+  // Résoudre le chemin du template (cloud sync ou local)
+  const resolvedTemplatePath = resolveTemplatePath(job);
+  if (!resolvedTemplatePath) {
+    throw new Error(`Template non trouvé: ${templateName || templateId}. Vérifiez que les templates sont synchronisés.`);
+  }
+  console.log('📄 Template utilisé:', resolvedTemplatePath);
   
   // Créer le dossier du projet
   const projectDir = path.join(app.getPath('temp'), 'magflow', projectId);
@@ -236,7 +244,7 @@ async function executeJob(job) {
     subtitle: chapo,
     images: localImages,
     template: templateName || templateId,
-    template_path: templatePath,
+    template_path: resolvedTemplatePath,
     created_at: new Date().toISOString()
   };
   
@@ -384,8 +392,72 @@ function executeInDesignWindows(projectId, configPath) {
   });
 }
 
+// Synchroniser les templates au démarrage
+async function syncTemplatesAtStartup() {
+  console.log('[Agent] 📦 Synchronisation des templates...');
+  mainWindow?.webContents.send('sync-status', { status: 'syncing', message: 'Synchronisation des templates...' });
+  
+  try {
+    const results = await templateSync.syncTemplates(BACKEND_URL, (progress) => {
+      mainWindow?.webContents.send('sync-progress', progress);
+    });
+    
+    templatesSynced = true;
+    console.log(`[Agent] ✅ Templates synchronisés: ${results.downloaded} téléchargés, ${results.skipped} en cache`);
+    
+    // Sauvegarder la liste des templates avec leurs chemins locaux
+    store.set('cachedTemplates', results.templates);
+    
+    mainWindow?.webContents.send('sync-status', { 
+      status: 'complete', 
+      message: `${results.downloaded} templates téléchargés`,
+      results 
+    });
+    
+    return results;
+  } catch (error) {
+    console.error('[Agent] ❌ Erreur sync templates:', error.message);
+    mainWindow?.webContents.send('sync-status', { 
+      status: 'error', 
+      message: error.message 
+    });
+    return null;
+  }
+}
+
+// Résoudre le chemin local d'un template
+function resolveTemplatePath(job) {
+  // Si template_path fourni et existe, l'utiliser
+  if (job.template_path && fs.existsSync(job.template_path)) {
+    return job.template_path;
+  }
+  
+  // Sinon chercher dans le cache local
+  const cachedTemplates = store.get('cachedTemplates') || [];
+  const template = cachedTemplates.find(t => 
+    t.id === job.template_id || 
+    t.filename === job.template_name
+  );
+  
+  if (template?.local_path && fs.existsSync(template.local_path)) {
+    console.log(`[Agent] Template résolu depuis cache: ${template.local_path}`);
+    return template.local_path;
+  }
+  
+  // Fallback: chercher dans le dossier templates local
+  const cacheDir = templateSync.TEMPLATES_CACHE_DIR;
+  if (job.template_name) {
+    const localPath = path.join(cacheDir, job.template_name);
+    if (fs.existsSync(localPath)) {
+      return localPath;
+    }
+  }
+  
+  return null;
+}
+
 // App lifecycle
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow();
   createTray();
   
@@ -393,6 +465,9 @@ app.whenReady().then(() => {
   if (!store.get('agentId')) {
     store.set('agentId', uuidv4());
   }
+  
+  // Synchroniser les templates en arrière-plan
+  setTimeout(() => syncTemplatesAtStartup(), 1000);
   
   // IPC Handlers (doivent être après app.whenReady)
   ipcMain.handle('login', async (event, { email, password }) => {
@@ -460,6 +535,31 @@ app.whenReady().then(() => {
       return appName;
     }
     return null;
+  });
+
+  // IPC Handlers pour la synchronisation des templates
+  ipcMain.handle('sync-templates', async () => {
+    console.log('[Agent] Manual template sync requested');
+    return await syncTemplatesAtStartup();
+  });
+
+  ipcMain.handle('get-local-templates', () => {
+    return {
+      templates: store.get('cachedTemplates') || [],
+      cacheDir: templateSync.TEMPLATES_CACHE_DIR,
+      synced: templatesSynced
+    };
+  });
+
+  ipcMain.handle('clear-template-cache', () => {
+    templateSync.clearCache();
+    store.delete('cachedTemplates');
+    templatesSynced = false;
+    return { success: true };
+  });
+
+  ipcMain.handle('get-template-path', (event, templateId) => {
+    return templateSync.getLocalTemplatePath(templateId);
   });
   
   // Auto-connexion si token sauvegardé
