@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient.js';
+import { processNewTemplate, updateTemplateFromAnalysis } from '../services/templateWorkflow.js';
 
 const router = express.Router();
 
@@ -309,6 +310,104 @@ router.post('/upload-all', async (req, res, next) => {
 
   } catch (error) {
     console.error('[TemplateUpload] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/templates/upload-and-process
+ * Workflow complet: Upload → Analyse InDesign → Miniature → Enrichissement IA → Création BDD
+ */
+router.post('/upload-and-process', upload.single('template'), async (req, res, next) => {
+  const tempFilePath = req.file?.path;
+  
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded'
+      });
+    }
+
+    if (!isSupabaseConfigured) {
+      return res.status(503).json({
+        success: false,
+        error: 'Supabase not configured'
+      });
+    }
+
+    const originalName = req.file.originalname;
+    const templateName = req.body.name || null;
+
+    console.log(`[TemplateUpload] Starting full workflow for: ${originalName}`);
+
+    // Copier le fichier vers un emplacement permanent
+    const templatesDir = process.env.TEMPLATES_DIR || '/tmp/magflow-templates';
+    if (!fs.existsSync(templatesDir)) {
+      fs.mkdirSync(templatesDir, { recursive: true });
+    }
+    
+    const permanentPath = path.join(templatesDir, originalName);
+    fs.copyFileSync(tempFilePath, permanentPath);
+
+    // Lancer le workflow complet
+    const result = await processNewTemplate({
+      filePath: permanentPath,
+      originalName,
+      templateName
+    });
+
+    res.json({
+      success: true,
+      message: 'Template processed successfully',
+      template: result.template,
+      warnings: result.errors.length > 0 ? result.errors : undefined
+    });
+
+  } catch (error) {
+    console.error('[TemplateUpload] Workflow error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  } finally {
+    // Nettoyer le fichier temporaire
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+  }
+});
+
+/**
+ * POST /api/templates/:id/reanalyze
+ * Re-analyse un template existant et met à jour ses métadonnées + miniature
+ */
+router.post('/:id/reanalyze', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!isSupabaseConfigured) {
+      return res.status(503).json({
+        success: false,
+        error: 'Supabase not configured'
+      });
+    }
+
+    console.log(`[TemplateUpload] Re-analyzing template: ${id}`);
+
+    const updatedTemplate = await updateTemplateFromAnalysis(id);
+
+    res.json({
+      success: true,
+      message: 'Template re-analyzed successfully',
+      template: updatedTemplate
+    });
+
+  } catch (error) {
+    console.error('[TemplateUpload] Re-analyze error:', error);
     res.status(500).json({
       success: false,
       error: error.message

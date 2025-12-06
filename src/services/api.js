@@ -146,6 +146,64 @@ export const templatesAPI = {
     });
     return data.template;
   },
+
+  /**
+   * Upload et traite un nouveau template (workflow complet)
+   * Upload → Analyse InDesign → Miniature → Enrichissement IA → Création BDD
+   * @param {File} file - Fichier .indt ou .indd
+   * @param {string} name - Nom du template (optionnel)
+   * @param {Function} onProgress - Callback de progression (optionnel)
+   * @returns {Promise<Object>} Template créé avec toutes ses métadonnées
+   */
+  async uploadAndProcess(file, name = null, onProgress = null) {
+    const formData = new FormData();
+    formData.append('template', file);
+    if (name) {
+      formData.append('name', name);
+    }
+
+    if (onProgress) {
+      onProgress({ step: 'uploading', message: 'Upload du template...' });
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/templates/upload-and-process`, {
+        method: 'POST',
+        body: formData,
+        // Note: Ne pas définir Content-Type, le navigateur le fait automatiquement avec FormData
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      if (onProgress) {
+        onProgress({ step: 'complete', message: 'Template traité avec succès' });
+      }
+
+      return {
+        template: data.template,
+        warnings: data.warnings || []
+      };
+    } catch (error) {
+      console.error('[API] Upload and process error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Re-analyse un template existant (mise à jour métadonnées + miniature)
+   * @param {string} templateId - ID du template
+   * @returns {Promise<Object>} Template mis à jour
+   */
+  async reanalyze(templateId) {
+    const data = await apiCall(`/api/templates/${templateId}/reanalyze`, {
+      method: 'POST',
+    });
+    return data.template;
+  },
 };
 
 /**

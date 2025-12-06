@@ -5,6 +5,42 @@
 [build.environment]
   NODE_VERSION = "18"
 
+# ============================================
+# Production (branche main)
+# ============================================
+[context.production]
+  command = "npm run build"
+  [context.production.environment]
+    VITE_API_URL = "https://magflow-api.onrender.com"
+    VITE_ENV = "production"
+
+# ============================================
+# Recette / Staging (branche recette)
+# ============================================
+[context.recette]
+  command = "npm run build"
+  [context.recette.environment]
+    VITE_API_URL = "https://magflow-api-staging.onrender.com"
+    VITE_ENV = "staging"
+
+# ============================================
+# Preview (Pull Requests)
+# ============================================
+[context.deploy-preview]
+  command = "npm run build"
+  [context.deploy-preview.environment]
+    VITE_API_URL = "https://magflow-api-staging.onrender.com"
+    VITE_ENV = "preview"
+
+# ============================================
+# Branch deploys (autres branches)
+# ============================================
+[context.branch-deploy]
+  command = "npm run build"
+  [context.branch-deploy.environment]
+    VITE_API_URL = "https://magflow-api-staging.onrender.com"
+    VITE_ENV = "branch"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

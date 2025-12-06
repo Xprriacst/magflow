@@ -492,5 +492,269 @@ def get_config():
         'port': 5003
     })
 
+# ============================================
+# ANALYSE DE TEMPLATES ET GÉNÉRATION MINIATURES
+# ============================================
+
+@app.route('/api/templates/analyze', methods=['POST'])
+def analyze_template():
+    """
+    Analyse un template InDesign et génère une miniature automatiquement.
+    
+    Body JSON:
+    {
+        "template_path": "/chemin/vers/template.indt",
+        "thumbnail_width": 800,  // optionnel
+        "thumbnail_height": 600  // optionnel
+    }
+    
+    Retourne les métadonnées extraites et le chemin de la miniature.
+    """
+    try:
+        # Auth (optionnelle si API_TOKEN non défini)
+        err, status = _require_bearer_or_401()
+        if err:
+            return err, status
+        
+        data = request.get_json(silent=True) or {}
+        template_path = data.get('template_path')
+        
+        if not template_path:
+            return jsonify({'error': 'template_path is required'}), 400
+        
+        if not os.path.exists(template_path):
+            return jsonify({'error': f'Template not found: {template_path}'}), 404
+        
+        # Configuration pour le script InDesign
+        analysis_dir = os.path.join(os.getcwd(), 'analysis')
+        os.makedirs(analysis_dir, exist_ok=True)
+        
+        thumbnails_dir = os.path.join(os.getcwd(), 'thumbnails')
+        os.makedirs(thumbnails_dir, exist_ok=True)
+        
+        config = {
+            'template_path': template_path,
+            'output_dir': thumbnails_dir + '/',
+            'thumbnail_width': data.get('thumbnail_width', 800),
+            'thumbnail_height': data.get('thumbnail_height', 600)
+        }
+        
+        config_path = os.path.join(analysis_dir, 'config.json')
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        
+        # Exécuter le script InDesign
+        script_path = os.path.join(os.getcwd(), 'scripts', 'analyze_and_thumbnail.jsx')
+        result = execute_analysis_script(script_path, config_path)
+        
+        if not result['success']:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Analysis script failed')
+            }), 500
+        
+        # Lire les résultats
+        results_path = os.path.join(analysis_dir, 'results.json')
+        if not os.path.exists(results_path):
+            return jsonify({
+                'success': False,
+                'error': 'Analysis results not found'
+            }), 500
+        
+        with open(results_path, 'r', encoding='utf-8') as f:
+            analysis_results = json.load(f)
+        
+        if not analysis_results.get('success'):
+            return jsonify({
+                'success': False,
+                'error': 'Analysis failed',
+                'details': analysis_results.get('errors', [])
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'template': analysis_results.get('template'),
+            'thumbnail': analysis_results.get('thumbnail'),
+            'errors': analysis_results.get('errors', [])
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+
+def execute_analysis_script(script_path, config_path):
+    """Exécute le script d'analyse InDesign"""
+    try:
+        if not os.path.exists(script_path):
+            return {'success': False, 'error': f'Script not found: {script_path}'}
+        
+        indesign_app = os.getenv('INDESIGN_APP_NAME', 'Adobe InDesign 2025')
+        
+        # Créer un script AppleScript temporaire
+        applescript_content = f'''
+tell application "{indesign_app}"
+    activate
+    do script POSIX file "{script_path}" language javascript
+end tell
+'''
+        
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.applescript', delete=False) as temp_file:
+            temp_file.write(applescript_content)
+            temp_script_path = temp_file.name
+        
+        try:
+            cmd = ['osascript', temp_script_path]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        finally:
+            os.unlink(temp_script_path)
+        
+        if result.returncode == 0:
+            return {'success': True}
+        else:
+            return {
+                'success': False,
+                'error': f'Script error: {result.stderr}'
+            }
+            
+    except subprocess.TimeoutExpired:
+        return {'success': False, 'error': 'Script timeout'}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+@app.route('/api/templates/upload-and-analyze', methods=['POST'])
+def upload_and_analyze_template():
+    """
+    Upload un template InDesign, l'analyse et génère une miniature.
+    
+    Form-data:
+    - template: Fichier .indt ou .indd
+    - name: Nom du template (optionnel, déduit du fichier)
+    
+    Retourne les métadonnées et la miniature uploadée vers Supabase.
+    """
+    try:
+        # Auth (optionnelle si API_TOKEN non défini)
+        err, status = _require_bearer_or_401()
+        if err:
+            return err, status
+        
+        if 'template' not in request.files:
+            return jsonify({'error': 'No template file provided'}), 400
+        
+        template_file = request.files['template']
+        if not template_file.filename:
+            return jsonify({'error': 'Empty filename'}), 400
+        
+        # Valider l'extension
+        filename = secure_filename(template_file.filename)
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in ['.indt', '.indd']:
+            return jsonify({'error': 'Only .indt and .indd files are allowed'}), 400
+        
+        # Sauvegarder le fichier temporairement
+        templates_dir = os.path.join(os.getcwd(), 'indesign_templates')
+        os.makedirs(templates_dir, exist_ok=True)
+        
+        template_path = os.path.join(templates_dir, filename)
+        template_file.save(template_path)
+        
+        print(f'[TemplateUpload] Saved template to: {template_path}')
+        
+        # Configurer l'analyse
+        analysis_dir = os.path.join(os.getcwd(), 'analysis')
+        os.makedirs(analysis_dir, exist_ok=True)
+        
+        thumbnails_dir = os.path.join(os.getcwd(), 'thumbnails')
+        os.makedirs(thumbnails_dir, exist_ok=True)
+        
+        config = {
+            'template_path': template_path,
+            'output_dir': thumbnails_dir + '/',
+            'thumbnail_width': 800,
+            'thumbnail_height': 600
+        }
+        
+        config_path = os.path.join(analysis_dir, 'config.json')
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        
+        # Exécuter l'analyse
+        script_path = os.path.join(os.getcwd(), 'scripts', 'analyze_and_thumbnail.jsx')
+        result = execute_analysis_script(script_path, config_path)
+        
+        if not result['success']:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Analysis script failed'),
+                'template_path': template_path
+            }), 500
+        
+        # Lire les résultats
+        results_path = os.path.join(analysis_dir, 'results.json')
+        if not os.path.exists(results_path):
+            return jsonify({
+                'success': False,
+                'error': 'Analysis results not found',
+                'template_path': template_path
+            }), 500
+        
+        with open(results_path, 'r', encoding='utf-8') as f:
+            analysis_results = json.load(f)
+        
+        if not analysis_results.get('success'):
+            return jsonify({
+                'success': False,
+                'error': 'Analysis failed',
+                'details': analysis_results.get('errors', []),
+                'template_path': template_path
+            }), 500
+        
+        # Préparer la réponse
+        template_info = analysis_results.get('template', {})
+        thumbnail_info = analysis_results.get('thumbnail', {})
+        
+        # Nom du template (depuis le form ou déduit du fichier)
+        template_name = request.form.get('name') or os.path.splitext(filename)[0].replace('-', ' ').replace('_', ' ').title()
+        
+        response_data = {
+            'success': True,
+            'template': {
+                'name': template_name,
+                'filename': filename,
+                'file_path': template_path,
+                'placeholders': template_info.get('placeholders', []),
+                'image_slots': template_info.get('image_slots', 0),
+                'fonts': template_info.get('fonts', []),
+                'colors': template_info.get('colors', []),
+                'page_count': template_info.get('page_count', 1),
+                'width': template_info.get('width', 0),
+                'height': template_info.get('height', 0)
+            },
+            'thumbnail': thumbnail_info
+        }
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+
+@app.route('/api/thumbnails/<filename>')
+def serve_thumbnail(filename):
+    """Sert les fichiers de miniatures générés"""
+    try:
+        thumbnails_dir = os.path.join(os.getcwd(), 'thumbnails')
+        filepath = os.path.join(thumbnails_dir, secure_filename(filename))
+        
+        if not os.path.exists(filepath):
+            return jsonify({'error': 'Thumbnail not found'}), 404
+        
+        return send_file(filepath, mimetype='image/jpeg')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

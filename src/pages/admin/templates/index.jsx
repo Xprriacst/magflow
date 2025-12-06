@@ -17,6 +17,13 @@ const TemplatesAdmin = () => {
   const [previewEditor, setPreviewEditor] = useState(null);
   const [previewError, setPreviewError] = useState(null);
   const [updatingPreviewId, setUpdatingPreviewId] = useState(null);
+  
+  // État pour l'upload de nouveau template
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadName, setUploadName] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
 
   useEffect(() => {
     loadTemplates();
@@ -62,6 +69,89 @@ const TemplatesAdmin = () => {
       await templatesAPI.analyzeOne(templateId);
       setSuccessMessage(`✅ Template analysé avec succès`);
       await loadTemplates();
+    } catch (err) {
+      setError(`Erreur: ${err.message}`);
+    }
+  };
+
+  // === UPLOAD DE NOUVEAU TEMPLATE ===
+  
+  const handleOpenUploadModal = () => {
+    setShowUploadModal(true);
+    setUploadFile(null);
+    setUploadName('');
+    setUploadProgress(null);
+    setError(null);
+  };
+
+  const handleCloseUploadModal = () => {
+    setShowUploadModal(false);
+    setUploadFile(null);
+    setUploadName('');
+    setUploadProgress(null);
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (!['indt', 'indd'].includes(ext)) {
+        setError('Seuls les fichiers .indt et .indd sont acceptés');
+        return;
+      }
+      setUploadFile(file);
+      // Suggérer un nom basé sur le fichier
+      if (!uploadName) {
+        const suggestedName = file.name
+          .replace(/\.(indt|indd)$/i, '')
+          .replace(/[-_]/g, ' ')
+          .replace(/\b\w/g, c => c.toUpperCase());
+        setUploadName(suggestedName);
+      }
+    }
+  };
+
+  const handleUploadTemplate = async () => {
+    if (!uploadFile) {
+      setError('Veuillez sélectionner un fichier');
+      return;
+    }
+
+    setIsUploading(true);
+    setError(null);
+    setUploadProgress({ step: 'starting', message: 'Démarrage du traitement...' });
+
+    try {
+      const result = await templatesAPI.uploadAndProcess(
+        uploadFile,
+        uploadName || null,
+        (progress) => setUploadProgress(progress)
+      );
+
+      setSuccessMessage(`✅ Template "${result.template.name}" créé avec succès !`);
+      
+      if (result.warnings && result.warnings.length > 0) {
+        console.warn('[TemplatesAdmin] Upload warnings:', result.warnings);
+      }
+
+      handleCloseUploadModal();
+      await loadTemplates();
+    } catch (err) {
+      setError(`Erreur lors du traitement: ${err.message}`);
+      setUploadProgress({ step: 'error', message: err.message });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleReanalyze = async (templateId) => {
+    setError(null);
+    setSuccessMessage(null);
+    
+    try {
+      const updatedTemplate = await templatesAPI.reanalyze(templateId);
+      setSuccessMessage(`✅ Template re-analysé avec nouvelle miniature`);
+      setTemplates(prev => prev.map(t => t.id === updatedTemplate.id ? updatedTemplate : t));
     } catch (err) {
       setError(`Erreur: ${err.message}`);
     }
@@ -214,13 +304,21 @@ const TemplatesAdmin = () => {
                 Analysez et enrichissez automatiquement les métadonnées des templates InDesign
               </p>
             </div>
-            <Button
-              onClick={() => navigate('/')}
-              variant="secondary"
-              leftIcon={<Icon name="ArrowLeft" size={18} />}
-            >
-              Retour
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleOpenUploadModal}
+                leftIcon={<Icon name="Upload" size={18} />}
+              >
+                Ajouter un template
+              </Button>
+              <Button
+                onClick={() => navigate('/')}
+                variant="secondary"
+                leftIcon={<Icon name="ArrowLeft" size={18} />}
+              >
+                Retour
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -342,12 +440,13 @@ const TemplatesAdmin = () => {
                           </div>
                           <div className="flex items-center gap-2">
                             <Button
-                              onClick={() => handleAnalyzeOne(template.id)}
+                              onClick={() => handleReanalyze(template.id)}
                               variant="secondary"
                               size="sm"
-                              leftIcon={<Icon name="RefreshCw" size={14} />}
+                              leftIcon={<Icon name="Zap" size={14} />}
+                              title="Re-analyse avec génération de miniature"
                             >
-                              Analyser
+                              Re-analyser
                             </Button>
                             <Button
                               onClick={() => openPreviewEditor(template)}
@@ -548,15 +647,170 @@ const TemplatesAdmin = () => {
                 Comment fonctionne l'analyse automatique ?
               </h3>
               <ul className="text-blue-800 text-sm space-y-1">
-                <li>• <strong>Extraction InDesign:</strong> Ouvre chaque template et compte les emplacements d'images, extrait les placeholders de texte</li>
-                <li>• <strong>Métadonnées:</strong> Récupère les polices, couleurs, dimensions du document</li>
-                <li>• <strong>Enrichissement IA:</strong> GPT-4 analyse les données et suggère catégorie, style et tags</li>
-                <li>• <strong>Mise à jour:</strong> Les métadonnées sont automatiquement enregistrées dans Supabase</li>
+                <li>- <strong>Extraction InDesign:</strong> Ouvre chaque template et compte les emplacements d'images, extrait les placeholders de texte</li>
+                <li>- <strong>Métadonnées:</strong> Récupère les polices, couleurs, dimensions du document</li>
+                <li>- <strong>Enrichissement IA:</strong> GPT-4 analyse les données et suggère catégorie, style et tags</li>
+                <li>- <strong>Miniature automatique:</strong> Génère une preview JPG de la première page</li>
+                <li>- <strong>Mise à jour:</strong> Les métadonnées sont automatiquement enregistrées dans Supabase</li>
               </ul>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Modal Upload Template */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Ajouter un nouveau template
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Upload un fichier InDesign (.indt ou .indd)
+                </p>
+              </div>
+              <button
+                onClick={handleCloseUploadModal}
+                disabled={isUploading}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Icon name="X" size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Zone de drop */}
+              <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-indigo-400 transition-colors">
+                <input
+                  type="file"
+                  accept=".indt,.indd"
+                  onChange={handleFileSelect}
+                  disabled={isUploading}
+                  className="hidden"
+                  id="template-upload"
+                />
+                <label
+                  htmlFor="template-upload"
+                  className="cursor-pointer block"
+                >
+                  {uploadFile ? (
+                    <div>
+                      <Icon name="FileCheck" size={48} className="text-green-500 mx-auto mb-3" />
+                      <p className="text-gray-900 font-medium">{uploadFile.name}</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {(uploadFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                      <p className="text-xs text-indigo-600 mt-2">Cliquez pour changer</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <Icon name="Upload" size={48} className="text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-900 font-medium">Glissez votre fichier ici</p>
+                      <p className="text-sm text-gray-500 mt-1">ou cliquez pour parcourir</p>
+                      <p className="text-xs text-gray-400 mt-2">Formats acceptés: .indt, .indd (max 100MB)</p>
+                    </div>
+                  )}
+                </label>
+              </div>
+
+              {/* Nom du template */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nom du template
+                </label>
+                <Input
+                  value={uploadName}
+                  onChange={(e) => setUploadName(e.target.value)}
+                  placeholder="Ex: Magazine Lifestyle Modern"
+                  disabled={isUploading}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Laissez vide pour générer automatiquement à partir du nom de fichier
+                </p>
+              </div>
+
+              {/* Workflow explanation */}
+              <div className="bg-indigo-50 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-indigo-900 mb-2">
+                  Traitement automatique
+                </h4>
+                <ul className="text-xs text-indigo-800 space-y-1">
+                  <li className="flex items-center gap-2">
+                    <Icon name="CheckCircle" size={14} className="text-indigo-500" />
+                    Analyse du template via InDesign
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Icon name="CheckCircle" size={14} className="text-indigo-500" />
+                    Extraction des placeholders et zones d'images
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Icon name="CheckCircle" size={14} className="text-indigo-500" />
+                    Génération automatique de la miniature
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Icon name="CheckCircle" size={14} className="text-indigo-500" />
+                    Enrichissement IA (catégorie, style, recommandations)
+                  </li>
+                </ul>
+              </div>
+
+              {/* Progress */}
+              {uploadProgress && (
+                <div className={`p-4 rounded-lg ${
+                  uploadProgress.step === 'error' 
+                    ? 'bg-red-50 border border-red-200' 
+                    : 'bg-blue-50 border border-blue-200'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    {uploadProgress.step === 'error' ? (
+                      <Icon name="AlertCircle" size={20} className="text-red-500" />
+                    ) : (
+                      <div className="animate-spin">
+                        <Icon name="Loader" size={20} className="text-blue-500" />
+                      </div>
+                    )}
+                    <div>
+                      <p className={`font-medium text-sm ${
+                        uploadProgress.step === 'error' ? 'text-red-800' : 'text-blue-800'
+                      }`}>
+                        {uploadProgress.step === 'error' ? 'Erreur' : 'Traitement en cours...'}
+                      </p>
+                      <p className={`text-xs ${
+                        uploadProgress.step === 'error' ? 'text-red-600' : 'text-blue-600'
+                      }`}>
+                        {uploadProgress.message}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+              <Button
+                onClick={handleCloseUploadModal}
+                variant="secondary"
+                disabled={isUploading}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleUploadTemplate}
+                disabled={!uploadFile || isUploading}
+                loading={isUploading}
+                leftIcon={<Icon name="Zap" size={18} />}
+              >
+                {isUploading ? 'Traitement...' : 'Traiter le template'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
