@@ -9,6 +9,7 @@ import contentRoutes from './routes/content.js';
 import templatesRoutes from './routes/templates.js';
 import magazineRoutes from './routes/magazine.js';
 import uploadRoutes from './routes/upload.js';
+import authRoutes from './routes/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -146,6 +147,7 @@ app.use('/api/content', contentRoutes);
 app.use('/api/templates', templatesRoutes);
 app.use('/api/magazine', magazineRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/auth', authRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

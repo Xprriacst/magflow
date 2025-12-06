@@ -55,7 +55,8 @@ router.post('/images', upload.array('images', 10), (req, res, next) => {
       });
     }
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    // Utiliser PUBLIC_URL en production, sinon construire depuis la requête
+    const baseUrl = process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
     const uploadedFiles = req.files.map(file => ({
       filename: file.filename,
       originalName: file.originalname,
