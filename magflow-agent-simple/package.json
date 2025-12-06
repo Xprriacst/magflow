@@ -1,0 +1,14 @@
+{
+  "name": "magflow-agent-simple",
+  "version": "1.0.0",
+  "description": "MagFlow Desktop Agent - Connecte InDesign au cloud",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "socket.io-client": "^4.7.2",
+    "uuid": "^9.0.0"
+  }
+}
