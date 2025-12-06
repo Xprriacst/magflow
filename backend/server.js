@@ -40,16 +40,15 @@ io.on('connection', (socket) => {
     const { agentId, userId, platform, indesignVersion } = data;
     console.log(`✅ Agent enregistré: ${agentId} (${platform}, ${indesignVersion})`);
     
-    // Stocker l'association userId -> socket
-    if (userId) {
-      connectedAgents.set(userId, {
-        socketId: socket.id,
-        agentId,
-        platform,
-        indesignVersion,
-        connectedAt: new Date()
-      });
-    }
+    // Stocker l'agent par agentId (et aussi par userId si disponible)
+    connectedAgents.set(agentId, {
+      socketId: socket.id,
+      agentId,
+      userId,
+      platform,
+      indesignVersion,
+      connectedAt: new Date()
+    });
     
     socket.agentId = agentId;
     socket.userId = userId;
@@ -69,8 +68,8 @@ io.on('connection', (socket) => {
   
   socket.on('disconnect', () => {
     console.log('❌ Agent déconnecté:', socket.id);
-    if (socket.userId) {
-      connectedAgents.delete(socket.userId);
+    if (socket.agentId) {
+      connectedAgents.delete(socket.agentId);
     }
   });
 });
