@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MagFlow Agent</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: #333;
+    }
+    
+    .container {
+      padding: 20px;
+      max-width: 400px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      text-align: center;
+      padding: 30px 0;
+      color: white;
+    }
+    
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 5px;
+    }
+    
+    .header p {
+      opacity: 0.8;
+      font-size: 14px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+    
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+    
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #dc3545;
+    }
+    
+    .status-dot.connected {
+      background: #28a745;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .status-text {
+      flex: 1;
+    }
+    
+    .status-text strong {
+      display: block;
+      font-size: 14px;
+    }
+    
+    .status-text span {
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .form-group {
+      margin-bottom: 16px;
+    }
+    
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: #555;
+    }
+    
+    .form-group input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e9ecef;
+      border-radius: 10px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    
+    .form-group input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    .btn-secondary {
+      background: #f8f9fa;
+      color: #333;
+      margin-top: 10px;
+    }
+    
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+      margin-top: 10px;
+    }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+    }
+    
+    .info-row:last-child {
+      border-bottom: none;
+    }
+    
+    .info-row .label {
+      color: #666;
+    }
+    
+    .info-row .value {
+      font-weight: 500;
+    }
+    
+    .jobs-list {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .job-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    
+    .job-item .icon {
+      font-size: 20px;
+    }
+    
+    .job-item .info {
+      flex: 1;
+    }
+    
+    .job-item .title {
+      font-weight: 500;
+    }
+    
+    .job-item .time {
+      font-size: 11px;
+      color: #666;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .error-message {
+      background: #fee;
+      color: #c00;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>✨ MagFlow Agent</h1>
+      <p>Connectez votre InDesign au cloud</p>
+    </div>
+    
+    <!-- Login View -->
+    <div id="login-view" class="card">
+      <h2 style="margin-bottom: 20px; font-size: 18px;">Connexion</h2>
+      
+      <div id="error-message" class="error-message hidden"></div>
+      
+      <form id="login-form">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="email" placeholder="votre@email.com" required>
+        </div>
+        
+        <div class="form-group">
+          <label>Mot de passe</label>
+          <input type="password" id="password" placeholder="••••••••" required>
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Se connecter</button>
+      </form>
+      
+      <button class="btn btn-secondary" onclick="openSignup()">Créer un compte</button>
+    </div>
+    
+    <!-- Dashboard View -->
+    <div id="dashboard-view" class="hidden">
+      <div class="card">
+        <div class="status-indicator">
+          <div id="status-dot" class="status-dot"></div>
+          <div class="status-text">
+            <strong id="status-label">Déconnecté</strong>
+            <span id="status-detail">En attente de connexion...</span>
+          </div>
+        </div>
+        
+        <div class="info-row">
+          <span class="label">Utilisateur</span>
+          <span class="value" id="user-email">-</span>
+        </div>
+        
+        <div class="info-row">
+          <span class="label">InDesign</span>
+          <span class="value" id="indesign-version">Détection...</span>
+        </div>
+        
+        <div class="info-row">
+          <span class="label">Jobs traités</span>
+          <span class="value" id="jobs-count">0</span>
+        </div>
+        
+        <button class="btn btn-secondary" onclick="openWebApp()">
+          🌐 Ouvrir MagFlow Web
+        </button>
+        
+        <button class="btn btn-danger" onclick="logout()">
+          Se déconnecter
+        </button>
+      </div>
+      
+      <div class="card">
+        <h3 style="margin-bottom: 16px; font-size: 16px;">📋 Derniers jobs</h3>
+        <div id="jobs-list" class="jobs-list">
+          <p style="color: #666; font-size: 13px; text-align: center; padding: 20px 0;">
+            Aucun job pour le moment
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    const { ipcRenderer, shell } = require('electron');
+    
+    let jobsCount = 0;
+    const jobs = [];
+    
+    // Elements
+    const loginView = document.getElementById('login-view');
+    const dashboardView = document.getElementById('dashboard-view');
+    const loginForm = document.getElementById('login-form');
+    const errorMessage = document.getElementById('error-message');
+    const statusDot = document.getElementById('status-dot');
+    const statusLabel = document.getElementById('status-label');
+    const statusDetail = document.getElementById('status-detail');
+    const userEmail = document.getElementById('user-email');
+    const indesignVersion = document.getElementById('indesign-version');
+    const jobsCountEl = document.getElementById('jobs-count');
+    const jobsList = document.getElementById('jobs-list');
+    
+    // Check initial status
+    async function checkStatus() {
+      const status = await ipcRenderer.invoke('get-status');
+      
+      if (status.user) {
+        showDashboard(status);
+      } else {
+        showLogin();
+      }
+      
+      const version = await ipcRenderer.invoke('get-indesign-version');
+      indesignVersion.textContent = version;
+    }
+    
+    function showLogin() {
+      loginView.classList.remove('hidden');
+      dashboardView.classList.add('hidden');
+    }
+    
+    function showDashboard(status) {
+      loginView.classList.add('hidden');
+      dashboardView.classList.remove('hidden');
+      
+      if (status.user) {
+        userEmail.textContent = status.user.email;
+      }
+      
+      updateConnectionStatus(status.connected);
+    }
+    
+    function updateConnectionStatus(connected) {
+      if (connected) {
+        statusDot.classList.add('connected');
+        statusLabel.textContent = 'Connecté';
+        statusDetail.textContent = 'En attente de jobs...';
+      } else {
+        statusDot.classList.remove('connected');
+        statusLabel.textContent = 'Déconnecté';
+        statusDetail.textContent = 'Tentative de reconnexion...';
+      }
+    }
+    
+    // Login form
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      
+      errorMessage.classList.add('hidden');
+      
+      const result = await ipcRenderer.invoke('login', { email, password });
+      
+      if (result.success) {
+        showDashboard({ user: result.user, connected: true });
+      } else {
+        errorMessage.textContent = result.error;
+        errorMessage.classList.remove('hidden');
+      }
+    });
+    
+    async function logout() {
+      await ipcRenderer.invoke('logout');
+      showLogin();
+    }
+    
+    function openWebApp() {
+      shell.openExternal('https://magflow-app.netlify.app');
+    }
+    
+    function openSignup() {
+      shell.openExternal('https://magflow-app.netlify.app/signup');
+    }
+    
+    function addJobToList(job, status) {
+      const icons = {
+        'received': '📥',
+        'processing': '⏳',
+        'complete': '✅',
+        'error': '❌'
+      };
+      
+      jobs.unshift({ ...job, status, time: new Date() });
+      if (jobs.length > 10) jobs.pop();
+      
+      renderJobs();
+    }
+    
+    function renderJobs() {
+      if (jobs.length === 0) {
+        jobsList.innerHTML = '<p style="color: #666; font-size: 13px; text-align: center; padding: 20px 0;">Aucun job pour le moment</p>';
+        return;
+      }
+      
+      jobsList.innerHTML = jobs.map(job => `
+        <div class="job-item">
+          <span class="icon">${job.status === 'complete' ? '✅' : job.status === 'error' ? '❌' : '⏳'}</span>
+          <div class="info">
+            <div class="title">${job.title || 'Sans titre'}</div>
+            <div class="time">${formatTime(job.time)}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    function formatTime(date) {
+      return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    }
+    
+    // IPC Events
+    ipcRenderer.on('connection-status', (event, { connected }) => {
+      updateConnectionStatus(connected);
+    });
+    
+    ipcRenderer.on('job-received', (event, job) => {
+      addJobToList(job, 'processing');
+      statusDetail.textContent = `Traitement: ${job.title || 'Job en cours'}...`;
+    });
+    
+    ipcRenderer.on('job-complete', (event, { job }) => {
+      jobsCount++;
+      jobsCountEl.textContent = jobsCount;
+      
+      const existingJob = jobs.find(j => j.id === job.id);
+      if (existingJob) existingJob.status = 'complete';
+      renderJobs();
+      
+      statusDetail.textContent = 'En attente de jobs...';
+    });
+    
+    ipcRenderer.on('job-error', (event, { job, error }) => {
+      const existingJob = jobs.find(j => j.id === job.id);
+      if (existingJob) existingJob.status = 'error';
+      renderJobs();
+      
+      statusDetail.textContent = `Erreur: ${error}`;
+    });
+    
+    // Init
+    checkStatus();
+  </script>
+</body>
+</html>
