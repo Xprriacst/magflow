@@ -68,8 +68,12 @@ io.on('connection', (socket) => {
   
   socket.on('disconnect', () => {
     console.log('❌ Agent déconnecté:', socket.id);
+    // Ne supprimer que si c'est bien le même socket (évite de supprimer un agent reconnecté)
     if (socket.agentId) {
-      connectedAgents.delete(socket.agentId);
+      const agent = connectedAgents.get(socket.agentId);
+      if (agent && agent.socketId === socket.id) {
+        connectedAgents.delete(socket.agentId);
+      }
     }
   });
 });
