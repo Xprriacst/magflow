@@ -67,3 +67,6 @@ vite.config.*s.*
 
 # Other
 Indesign automation v1
+
+# Local Netlify folder
+.netlify

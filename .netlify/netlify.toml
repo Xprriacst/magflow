@@ -7,13 +7,15 @@ plugins = []
 [functions."*"]
 
 [build]
-publish = "/Users/alexandreerrasti/magflow0312/magflow/build"
+publish = "/Users/alexandreerrasti/magflow0312/build"
 publishOrigin = "config"
 commandOrigin = "config"
 command = "npm run build"
 
 [build.environment]
 NODE_VERSION = "18"
+VITE_API_URL = "https://magflow-api-staging.onrender.com"
+VITE_ENV = "staging"
 
 [build.processing]
 
