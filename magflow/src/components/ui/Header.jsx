@@ -32,9 +32,9 @@ const Header = () => {
     },
     { 
       name: 'Modèles', 
-      path: '/template-gallery', 
+      path: '/admin/templates', 
       icon: 'Layout',
-      tooltip: 'Galerie de modèles et prévisualisation'
+      tooltip: 'Gestion et configuration des templates'
     },
     { 
       name: 'Traitement', 
