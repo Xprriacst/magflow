@@ -241,6 +241,13 @@ def create_layout_urls():
         config_path = os.path.join(project_folder, 'config.json')
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
+        
+        # Aussi écrire dans analysis/config.json pour le fallback du script InDesign
+        analysis_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'analysis')
+        os.makedirs(analysis_folder, exist_ok=True)
+        analysis_config_path = os.path.join(analysis_folder, 'config.json')
+        with open(analysis_config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
 
         # Exécuter InDesign
         result = execute_indesign_script(project_id, config_path)
@@ -390,22 +397,17 @@ def validate_and_clean_instructions(instructions):
 def execute_indesign_script(project_id, config_path):
     """Exécute le script InDesign pour créer la mise en page"""
     try:
-        # Utiliser le chemin absolu basé sur l'emplacement de app.py
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        script_path = os.path.join(base_dir, 'scripts', 'template_simple_working.jsx')
-        
+        script_path = os.path.join(os.getcwd(), 'scripts', 'template_simple_working.jsx')
+        indesign_app = os.getenv('INDESIGN_APP_NAME', 'Adobe InDesign 2025')
         # Commande pour exécuter le script InDesign
         # Sur macOS, utiliser osascript avec un fichier temporaire
         import tempfile
         
         # Créer un script AppleScript temporaire
-        # Utiliser 'alias' pour le fichier script, c'est plus robuste avec do script
-        # Passer le chemin de config via variable d'environnement pour le script JSX
         applescript_content = f'''
-tell application id "com.adobe.InDesign"
+tell application "{indesign_app}"
     activate
-    set myScriptPath to "{script_path}"
-    do script (myScriptPath as POSIX file as alias) language javascript
+    do script POSIX file "{script_path}" language javascript
 end tell
 '''
         
@@ -414,41 +416,19 @@ end tell
             temp_script_path = temp_file.name
         
         try:
-            # Passer la variable d'environnement au processus osascript
-            env = os.environ.copy()
-            env['MAGFLOW_CONFIG_PATH'] = config_path
-            
             cmd = ['osascript', temp_script_path]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, env=env)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         finally:
             # Nettoyer le fichier temporaire
-            if os.path.exists(temp_script_path):
-                os.unlink(temp_script_path)
+            os.unlink(temp_script_path)
         
         if result.returncode == 0:
-            # Le script JSX doit sauvegarder le fichier dans le même dossier que config.json
-            # avec le nom {project_id}.indd
-            project_folder = os.path.dirname(config_path)
-            generated_file = os.path.join(project_folder, f'{project_id}.indd')
-            
-            # Déplacer vers le dossier output final si nécessaire, ou le laisser là
-            # Pour l'instant on vérifie juste qu'il existe
-            
-            if os.path.exists(generated_file):
-                # Copier vers output folder global pour l'accès via /api/download
-                final_output = os.path.join(app.config['OUTPUT_FOLDER'], f'{project_id}.indd')
-                shutil.copy2(generated_file, final_output)
-                
-                return {
-                    'success': True,
-                    'output_file': final_output,
-                    'message': 'Mise en page créée avec succès'
-                }
-            else:
-                 return {
-                    'success': False,
-                    'error': f'Le fichier de sortie {generated_file} n\'a pas été créé par le script InDesign'
-                }
+            output_file = os.path.join(app.config['OUTPUT_FOLDER'], f'{project_id}.indd')
+            return {
+                'success': True,
+                'output_file': output_file,
+                'message': 'Script InDesign exécuté avec succès'
+            }
         else:
             return {
                 'success': False,

@@ -396,10 +396,11 @@ def execute_indesign_script(project_id, config_path):
         # Sur macOS, utiliser osascript avec un fichier temporaire
         import tempfile
         
-        # Créer un script AppleScript temporaire
+        # Créer un script AppleScript temporaire avec scriptArgs pour passer le configPath
         applescript_content = f'''
 tell application "{indesign_app}"
     activate
+    set script args of script preferences to {{{{class:script arg, name:"configPath", value:"{config_path}"}}}}
     do script POSIX file "{script_path}" language javascript
 end tell
 '''

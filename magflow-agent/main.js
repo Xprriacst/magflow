@@ -10,7 +10,7 @@ const templateSync = require('./services/templateSync');
 
 // Configuration
 const store = new Store();
-const BACKEND_URL = process.env.MAGFLOW_BACKEND || 'https://magflow.onrender.com';
+const BACKEND_URL = process.env.MAGFLOW_BACKEND || 'http://localhost:3001';
 const LOCAL_FLASK_PORT = 5003;
 let templatesSynced = false;
 

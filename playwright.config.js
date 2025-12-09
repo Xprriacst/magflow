@@ -72,7 +72,7 @@ export default defineConfig({
     // Backend Node.js
     {
       command: 'npm run dev',
-      cwd: './backend',
+      cwd: './magflow/backend',
       port: 3001,
       timeout: 120000,
       reuseExistingServer: !process.env.CI,
@@ -83,6 +83,7 @@ export default defineConfig({
     // Frontend React
     {
       command: 'npm run dev',
+      cwd: './magflow',
       port: 5173,
       timeout: 120000,
       reuseExistingServer: !process.env.CI,
@@ -92,8 +93,8 @@ export default defineConfig({
     
     // Flask API
     {
-      command: 'python app.py',
-      cwd: './Indesign automation v1',
+      command: 'source venv/bin/activate && python3 app.py',
+      cwd: './magflow/flask-api',
       port: 5003,
       timeout: 120000,
       reuseExistingServer: !process.env.CI,

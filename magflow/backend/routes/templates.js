@@ -418,6 +418,58 @@ router.post('/:id/analyze', async (req, res, next) => {
 });
 
 /**
+ * PUT /api/templates/:id
+ * Met à jour un template (admin)
+ */
+router.put('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    if (!isSupabaseConfigured) {
+      return res.status(503).json({
+        success: false,
+        error: 'Supabase not configured'
+      });
+    }
+
+    // Nettoyer les placeholders si fournis (supprimer les doublons)
+    if (updateData.placeholders && Array.isArray(updateData.placeholders)) {
+      updateData.placeholders = [...new Set(updateData.placeholders)];
+    }
+
+    updateData.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('indesign_templates')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Database error: ${error.message}`);
+    }
+
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        error: 'Template not found'
+      });
+    }
+
+    console.log(`[Templates] Updated template ${id}`);
+
+    res.json({
+      success: true,
+      template: data
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * PUT /api/templates/:id/preview
  * Met à jour l'image de preview d'un template (admin)
  */

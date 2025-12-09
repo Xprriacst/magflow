@@ -10,10 +10,28 @@ function main() {
     app.scriptPreferences.userInteractionLevel = UserInteractionLevels.NEVER_INTERACT;
 
     try {
-        // 1. Récupérer le chemin de la configuration
-        var configPath = $.getenv("MAGFLOW_CONFIG_PATH");
+        // 1. Récupérer le chemin de la configuration via scriptArgs (passé par AppleScript)
+        var configPath = "";
+        
+        // Méthode 1: Via scriptArgs (recommandé)
+        if (app.scriptArgs.isDefined("configPath")) {
+            configPath = app.scriptArgs.getValue("configPath");
+        }
+        
+        // Méthode 2: Fallback sur variable d'environnement
         if (!configPath) {
-            throw new Error("Variable d'environnement MAGFLOW_CONFIG_PATH non définie");
+            configPath = $.getenv("MAGFLOW_CONFIG_PATH");
+        }
+        
+        // Méthode 3: Fallback sur chemin par défaut (analysis/config.json)
+        if (!configPath) {
+            var scriptDir = (new File($.fileName)).parent;
+            var appDir = scriptDir.parent;
+            configPath = appDir + "/analysis/config.json";
+        }
+        
+        if (!configPath) {
+            throw new Error("Chemin de configuration non défini (ni scriptArgs, ni env, ni défaut)");
         }
 
         var configFile = new File(configPath);
