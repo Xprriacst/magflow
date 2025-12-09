@@ -391,7 +391,7 @@ def execute_indesign_script(project_id, config_path):
     """Exécute le script InDesign pour créer la mise en page"""
     try:
         script_path = os.path.join(os.getcwd(), 'scripts', 'template_simple_working.jsx')
-        indesign_app = os.getenv('INDESIGN_APP_NAME', 'Adobe InDesign 2025')
+        indesign_app = os.getenv('INDESIGN_APP_NAME', 'Adobe InDesign 2026')
         # Commande pour exécuter le script InDesign
         # Sur macOS, utiliser osascript avec un fichier temporaire
         import tempfile
@@ -510,75 +510,138 @@ def analyze_template():
     
     Retourne les métadonnées extraites et le chemin de la miniature.
     """
+    import time
+    start_time = time.time()
+
     try:
+        print('\n' + '='*70)
+        print('🔍 FLASK: Template Analysis Request Received')
+        print('='*70)
+
         # Auth (optionnelle si API_TOKEN non défini)
         err, status = _require_bearer_or_401()
         if err:
             return err, status
-        
+
         data = request.get_json(silent=True) or {}
         template_path = data.get('template_path')
-        
+
+        print(f'📄 Template path: {template_path}')
+        print(f'📐 Thumbnail dimensions: {data.get("thumbnail_width", 800)}x{data.get("thumbnail_height", 600)}')
+
         if not template_path:
+            print('❌ ERROR: No template_path provided')
             return jsonify({'error': 'template_path is required'}), 400
-        
+
         if not os.path.exists(template_path):
+            print(f'❌ ERROR: File not found at {template_path}')
             return jsonify({'error': f'Template not found: {template_path}'}), 404
-        
+
+        file_size = os.path.getsize(template_path) / 1024 / 1024
+        print(f'✅ Template file exists ({file_size:.2f} MB)')
+
         # Configuration pour le script InDesign
+        print('\n📁 Setting up directories and config...')
         analysis_dir = os.path.join(os.getcwd(), 'analysis')
         os.makedirs(analysis_dir, exist_ok=True)
-        
+
         thumbnails_dir = os.path.join(os.getcwd(), 'thumbnails')
         os.makedirs(thumbnails_dir, exist_ok=True)
-        
+
         config = {
             'template_path': template_path,
             'output_dir': thumbnails_dir + '/',
             'thumbnail_width': data.get('thumbnail_width', 800),
             'thumbnail_height': data.get('thumbnail_height', 600)
         }
-        
+
         config_path = os.path.join(analysis_dir, 'config.json')
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
-        
+
+        print(f'✅ Config written to: {config_path}')
+
         # Exécuter le script InDesign
+        print('\n🖥️  Executing InDesign script...')
+        print('⏱️  Timeout: 600 seconds (10 minutes)')
+        print('⏳ This may take several minutes, please wait...')
+
         script_path = os.path.join(os.getcwd(), 'scripts', 'analyze_and_thumbnail.jsx')
+        script_start_time = time.time()
         result = execute_analysis_script(script_path, config_path)
+        script_duration = time.time() - script_start_time
+
+        print(f'⏱️  InDesign script completed in {script_duration:.2f}s')
         
         if not result['success']:
+            print(f'❌ InDesign script failed: {result.get("error")}')
             return jsonify({
                 'success': False,
                 'error': result.get('error', 'Analysis script failed')
             }), 500
-        
+
+        print('✅ InDesign script execution successful')
+
         # Lire les résultats
+        print('\n📄 Reading analysis results...')
         results_path = os.path.join(analysis_dir, 'results.json')
+
         if not os.path.exists(results_path):
+            print(f'❌ ERROR: Results file not found at {results_path}')
             return jsonify({
                 'success': False,
                 'error': 'Analysis results not found'
             }), 500
-        
+
+        # Lire et nettoyer le JSON pour échapper les caractères de contrôle
         with open(results_path, 'r', encoding='utf-8') as f:
-            analysis_results = json.load(f)
-        
+            raw_json = f.read()
+
+        # Remplacer les tabulations littérales par des espaces
+        # (InDesign peut écrire "Playfair Display\tBold" au lieu de "Playfair Display Bold")
+        cleaned_json = raw_json.replace('\t', ' ')
+
+        print(f'📄 JSON file size: {len(raw_json)} bytes')
+
+        try:
+            analysis_results = json.loads(cleaned_json)
+        except json.JSONDecodeError as e:
+            print(f'❌ JSON parsing error: {e}')
+            print(f'📄 Problematic JSON around char {e.pos}:')
+            start = max(0, e.pos - 50)
+            end = min(len(cleaned_json), e.pos + 50)
+            print(f'   ...{cleaned_json[start:end]}...')
+            return jsonify({
+                'success': False,
+                'error': f'Invalid JSON from InDesign script: {str(e)}'
+            }), 500
+
         if not analysis_results.get('success'):
+            print(f'❌ Analysis returned success=false')
+            print(f'   Errors: {analysis_results.get("errors", [])}')
             return jsonify({
                 'success': False,
                 'error': 'Analysis failed',
                 'details': analysis_results.get('errors', [])
             }), 500
-        
+
+        total_duration = time.time() - start_time
+        print(f'\n✅ Analysis completed successfully in {total_duration:.2f}s')
+        print(f'📊 Results: {len(analysis_results.get("template", {}).get("placeholders", []))} placeholders, '
+              f'{analysis_results.get("template", {}).get("image_slots", 0)} image slots')
+        print('='*70 + '\n')
+
         return jsonify({
             'success': True,
             'template': analysis_results.get('template'),
             'thumbnail': analysis_results.get('thumbnail'),
             'errors': analysis_results.get('errors', [])
         })
-        
+
     except Exception as e:
+        total_duration = time.time() - start_time
+        print(f'\n❌ FLASK ERROR after {total_duration:.2f}s: {str(e)}')
+        print('='*70 + '\n')
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 
@@ -588,26 +651,14 @@ def execute_analysis_script(script_path, config_path):
         if not os.path.exists(script_path):
             return {'success': False, 'error': f'Script not found: {script_path}'}
         
-        indesign_app = os.getenv('INDESIGN_APP_NAME', 'Adobe InDesign 2025')
+        indesign_app = os.getenv('INDESIGN_APP_NAME', 'Adobe InDesign 2026')
         
-        # Créer un script AppleScript temporaire
-        applescript_content = f'''
-tell application "{indesign_app}"
-    activate
-    do script POSIX file "{script_path}" language javascript
-end tell
-'''
+        # Utiliser osascript -e directement (plus fiable)
+        applescript_cmd = f'tell application "{indesign_app}" to do script POSIX file "{script_path}" language javascript'
         
-        import tempfile
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.applescript', delete=False) as temp_file:
-            temp_file.write(applescript_content)
-            temp_script_path = temp_file.name
-        
-        try:
-            cmd = ['osascript', temp_script_path]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        finally:
-            os.unlink(temp_script_path)
+        cmd = ['osascript', '-e', applescript_cmd]
+        # Augmenter le timeout à 600 secondes (10 minutes) pour les gros templates
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
         
         if result.returncode == 0:
             return {'success': True}

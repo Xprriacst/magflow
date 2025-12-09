@@ -756,6 +756,12 @@ const TemplatesAdmin = () => {
                     Enrichissement IA (catégorie, style, recommandations)
                   </li>
                 </ul>
+                <div className="mt-3 pt-3 border-t border-indigo-200">
+                  <p className="text-xs text-indigo-700 flex items-center gap-1">
+                    <Icon name="Clock" size={12} className="text-indigo-500" />
+                    Durée estimée: 3-8 minutes selon la complexité du template
+                  </p>
+                </div>
               </div>
 
               {/* Progress */}

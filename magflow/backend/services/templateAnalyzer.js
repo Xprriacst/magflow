@@ -71,13 +71,18 @@ async function createAnalysisConfig(templates) {
  * Exécute le script InDesign via osascript
  */
 async function executeInDesignScript(configPath) {
-  const indesignApp = process.env.INDESIGN_APP_NAME || 'Adobe InDesign 2025';
+  // Détection automatique ou fallback sur la version détectée (2026)
+  const indesignApp = process.env.INDESIGN_APP_NAME || 'Adobe InDesign 2026';
   
   // Créer un script AppleScript temporaire
+  // Utilise 'id "com.adobe.InDesign"' pour cibler l'instance active quelle que soit la version
   const applescript = `
-tell application "${indesignApp}"
+tell application id "com.adobe.InDesign"
     activate
-    do script (file POSIX file "${SCRIPT_PATH}") language javascript
+    -- Utiliser une variable pour le chemin pour éviter les erreurs de parsing
+    set myScriptPath to "${SCRIPT_PATH}"
+    -- Forcer la conversion en alias pour que do script l'accepte
+    do script (myScriptPath as POSIX file as alias) language javascript
 end tell
 `;
 
@@ -133,23 +138,59 @@ async function parseAnalysisResults(outputPath) {
 }
 
 /**
+ * Déplace la preview générée vers le dossier public
+ */
+async function handlePreviewImage(previewPath, templateId) {
+  if (!previewPath) return null;
+
+  try {
+    // Dossier public pour les images
+    const publicDir = path.resolve(__dirname, '../../uploads/images');
+    await fs.mkdir(publicDir, { recursive: true });
+
+    const fileName = `preview_${templateId}_${Date.now()}.jpg`;
+    const destPath = path.join(publicDir, fileName);
+
+    // Déplacer le fichier (copier puis supprimer pour éviter les erreurs cross-device)
+    await fs.copyFile(previewPath, destPath);
+    
+    // Tenter de supprimer l'original, mais ne pas bloquer si échec (InDesign peut le locker brièvement)
+    try { await fs.unlink(previewPath); } catch (e) {}
+
+    // Retourner l'URL relative (sera complétée par le frontend ou le serveur)
+    // On retourne une URL absolue pour simplifier l'affichage immédiat
+    const baseUrl = process.env.PUBLIC_URL || 'http://localhost:3001';
+    return `${baseUrl}/uploads/images/${fileName}`;
+  } catch (error) {
+    console.error('[TemplateAnalyzer] Error handling preview image:', error);
+    return null;
+  }
+}
+
+/**
  * Met à jour un template dans Supabase avec les métadonnées enrichies
  */
-async function updateTemplateInDatabase(templateId, metadata) {
+async function updateTemplateInDatabase(templateId, metadata, previewUrl) {
   try {
     const client = supabaseAdmin || supabase;
     
+    const updateData = {
+      image_slots: metadata.image_slots,
+      placeholders: metadata.placeholders,
+      category: metadata.category,
+      style: metadata.style,
+      recommended_for: metadata.recommended_for,
+      description: metadata.description || undefined,
+      updated_at: new Date().toISOString()
+    };
+
+    if (previewUrl) {
+      updateData.preview_url = previewUrl;
+    }
+
     const { data, error } = await client
       .from('indesign_templates')
-      .update({
-        image_slots: metadata.image_slots,
-        placeholders: metadata.placeholders,
-        category: metadata.category,
-        style: metadata.style,
-        recommended_for: metadata.recommended_for,
-        description: metadata.description || undefined,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', templateId)
       .select()
       .single();
@@ -221,6 +262,9 @@ export async function analyzeAllTemplates() {
           continue;
         }
 
+        // Gérer la preview
+        const previewUrl = await handlePreviewImage(templateResult.previewPath, templateResult.id);
+
         // Enrichir avec l'IA
         console.log(`[TemplateAnalyzer] Enriching template ${templateResult.filename}...`);
         const enrichedMetadata = await enrichTemplateMetadata({
@@ -244,7 +288,7 @@ export async function analyzeAllTemplates() {
         };
 
         // Mettre à jour dans Supabase
-        await updateTemplateInDatabase(templateResult.id, finalMetadata);
+        await updateTemplateInDatabase(templateResult.id, finalMetadata, previewUrl);
         results.updated++;
 
         console.log(`[TemplateAnalyzer] ✓ Updated template ${templateResult.filename}`);
@@ -303,6 +347,9 @@ export async function analyzeOneTemplate(templateId) {
       throw new Error(`Analysis errors: ${templateResult.errors.join(', ')}`);
     }
 
+    // Gérer la preview
+    const previewUrl = await handlePreviewImage(templateResult.previewPath, templateId);
+
     // Enrichir avec l'IA
     const enrichedMetadata = await enrichTemplateMetadata({
       filename: templateResult.filename,
@@ -324,7 +371,7 @@ export async function analyzeOneTemplate(templateId) {
       description: enrichedMetadata.description
     };
 
-    const updatedTemplate = await updateTemplateInDatabase(templateId, finalMetadata);
+    const updatedTemplate = await updateTemplateInDatabase(templateId, finalMetadata, previewUrl);
     
     console.log(`[TemplateAnalyzer] ✓ Template ${templateId} analyzed successfully`);
     return updatedTemplate;

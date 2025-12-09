@@ -167,11 +167,18 @@ export const templatesAPI = {
     }
 
     try {
+      // Créer un AbortController avec timeout de 10 minutes (600 secondes)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 600000);
+
       const response = await fetch(`${API_BASE_URL}/api/templates/upload-and-process`, {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
         // Note: Ne pas définir Content-Type, le navigateur le fait automatiquement avec FormData
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -188,6 +195,9 @@ export const templatesAPI = {
         warnings: data.warnings || []
       };
     } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error('Le traitement du template a pris trop de temps (>10 minutes). Veuillez réessayer ou contacter le support.');
+      }
       console.error('[API] Upload and process error:', error);
       throw error;
     }
@@ -199,10 +209,35 @@ export const templatesAPI = {
    * @returns {Promise<Object>} Template mis à jour
    */
   async reanalyze(templateId) {
-    const data = await apiCall(`/api/templates/${templateId}/reanalyze`, {
-      method: 'POST',
-    });
-    return data.template;
+    // Créer un AbortController avec timeout de 10 minutes
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 600000);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/templates/${templateId}/reanalyze`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return data.template;
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error('Le traitement a pris trop de temps (>10 minutes). Veuillez réessayer.');
+      }
+      console.error(`[API] Reanalyze error:`, error.message);
+      throw error;
+    }
   },
 };
 

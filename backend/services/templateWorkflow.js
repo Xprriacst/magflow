@@ -22,7 +22,13 @@ const FLASK_API_URL = process.env.FLASK_API_URL || 'http://localhost:5003';
  * @returns {Promise<Object>} Template créé avec toutes ses métadonnées
  */
 export async function processNewTemplate({ filePath, originalName, templateName }) {
-  console.log('[TemplateWorkflow] Starting template processing:', originalName);
+  const workflowStartTime = Date.now();
+  console.log('╔════════════════════════════════════════════════════════════════╗');
+  console.log('║  🚀 TEMPLATE WORKFLOW STARTED                                  ║');
+  console.log('╚════════════════════════════════════════════════════════════════╝');
+  console.log('[TemplateWorkflow] 📦 File:', originalName);
+  console.log('[TemplateWorkflow] 📍 Path:', filePath);
+  console.log('[TemplateWorkflow] 🏷️  Name:', templateName || '(auto-generate)');
 
   const results = {
     step: 'init',
@@ -33,8 +39,9 @@ export async function processNewTemplate({ filePath, originalName, templateName 
 
   try {
     // === ÉTAPE 1: Validation du fichier ===
+    console.log('\n┌─ STEP 1/6: FILE VALIDATION ─────────────────────────────────┐');
     results.step = 'validation';
-    
+
     if (!existsSync(filePath)) {
       throw new Error(`File not found: ${filePath}`);
     }
@@ -45,64 +52,97 @@ export async function processNewTemplate({ filePath, originalName, templateName 
     }
 
     const fileBuffer = readFileSync(filePath);
+    const fileSize = (fileBuffer.length / 1024 / 1024).toFixed(2);
     const checksum = crypto.createHash('md5').update(fileBuffer).digest('hex');
-    console.log('[TemplateWorkflow] File validated, checksum:', checksum);
+
+    console.log('[TemplateWorkflow] ✅ File exists and is valid');
+    console.log('[TemplateWorkflow] 📊 Size:', fileSize, 'MB');
+    console.log('[TemplateWorkflow] 🔐 Checksum:', checksum);
+    console.log('└──────────────────────────────────────────────────────────────┘');
 
     // === ÉTAPE 2: Analyse via Flask/InDesign ===
+    console.log('\n┌─ STEP 2/6: INDESIGN ANALYSIS (may take 2-8 min) ────────────┐');
     results.step = 'analysis';
-    console.log('[TemplateWorkflow] Analyzing template via Flask...');
+    console.log('[TemplateWorkflow] 🖥️  Sending to Flask API for InDesign processing...');
+    console.log('[TemplateWorkflow] ⏳ This will:');
+    console.log('[TemplateWorkflow]    1. Open template in InDesign');
+    console.log('[TemplateWorkflow]    2. Extract metadata (placeholders, images, fonts, colors)');
+    console.log('[TemplateWorkflow]    3. Generate thumbnail JPG');
+    console.log('[TemplateWorkflow]    4. Close document');
 
+    const analysisStartTime = Date.now();
     const analysisResult = await analyzeTemplateViaFlask(filePath);
-    
+    const analysisDuration = ((Date.now() - analysisStartTime) / 1000).toFixed(2);
+
     if (!analysisResult.success) {
       throw new Error(`Analysis failed: ${analysisResult.error || 'Unknown error'}`);
     }
 
-    console.log('[TemplateWorkflow] Analysis complete:', {
+    console.log(`[TemplateWorkflow] ✅ Analysis complete in ${analysisDuration}s`);
+    console.log('[TemplateWorkflow] 📋 Extracted:', {
       placeholders: analysisResult.template?.placeholders?.length || 0,
-      imageSlots: analysisResult.template?.image_slots || 0
+      imageSlots: analysisResult.template?.image_slots || 0,
+      fonts: analysisResult.template?.fonts?.length || 0,
+      colors: analysisResult.template?.colors?.length || 0
     });
+    console.log('└──────────────────────────────────────────────────────────────┘');
 
     // === ÉTAPE 3: Upload du template vers Supabase Storage ===
+    console.log('\n┌─ STEP 3/6: UPLOAD TEMPLATE TO CLOUD ────────────────────────┐');
     results.step = 'template_upload';
-    console.log('[TemplateWorkflow] Uploading template to Supabase Storage...');
+    console.log('[TemplateWorkflow] ☁️  Uploading', fileSize, 'MB to Supabase Storage...');
 
+    const uploadStartTime = Date.now();
     const templateStorageUrl = await uploadFileToSupabase(
       fileBuffer,
       `templates/${originalName}`,
       'application/octet-stream'
     );
+    const uploadDuration = ((Date.now() - uploadStartTime) / 1000).toFixed(2);
 
-    console.log('[TemplateWorkflow] Template uploaded:', templateStorageUrl);
+    console.log(`[TemplateWorkflow] ✅ Template uploaded in ${uploadDuration}s`);
+    console.log('[TemplateWorkflow] 🔗 URL:', templateStorageUrl);
+    console.log('└──────────────────────────────────────────────────────────────┘');
 
     // === ÉTAPE 4: Upload de la miniature vers Supabase Storage ===
+    console.log('\n┌─ STEP 4/6: UPLOAD THUMBNAIL TO CLOUD ───────────────────────┐');
     results.step = 'thumbnail_upload';
     let thumbnailUrl = null;
 
     if (analysisResult.thumbnail?.path) {
-      console.log('[TemplateWorkflow] Uploading thumbnail...');
-      
+      console.log('[TemplateWorkflow] 🖼️  Thumbnail found:', analysisResult.thumbnail.path);
+
       try {
         const thumbnailBuffer = readFileSync(analysisResult.thumbnail.path);
-        const thumbnailFilename = analysisResult.thumbnail.filename || 
+        const thumbnailSize = (thumbnailBuffer.length / 1024).toFixed(2);
+        const thumbnailFilename = analysisResult.thumbnail.filename ||
           originalName.replace(/\.(indt|indd)$/i, '_thumbnail.jpg');
-        
+
+        console.log('[TemplateWorkflow] 📊 Thumbnail size:', thumbnailSize, 'KB');
+
+        const thumbUploadStartTime = Date.now();
         thumbnailUrl = await uploadFileToSupabase(
           thumbnailBuffer,
           `previews/${thumbnailFilename}`,
           'image/jpeg'
         );
-        
-        console.log('[TemplateWorkflow] Thumbnail uploaded:', thumbnailUrl);
+        const thumbUploadDuration = ((Date.now() - thumbUploadStartTime) / 1000).toFixed(2);
+
+        console.log(`[TemplateWorkflow] ✅ Thumbnail uploaded in ${thumbUploadDuration}s`);
+        console.log('[TemplateWorkflow] 🔗 URL:', thumbnailUrl);
       } catch (thumbError) {
-        console.warn('[TemplateWorkflow] Thumbnail upload failed:', thumbError.message);
+        console.warn('[TemplateWorkflow] ⚠️  Thumbnail upload failed:', thumbError.message);
         results.errors.push(`Thumbnail upload warning: ${thumbError.message}`);
       }
+    } else {
+      console.log('[TemplateWorkflow] ⚠️  No thumbnail generated by InDesign');
     }
+    console.log('└──────────────────────────────────────────────────────────────┘');
 
     // === ÉTAPE 5: Enrichissement IA des métadonnées ===
+    console.log('\n┌─ STEP 5/6: AI ENRICHMENT (GPT-4 analysis) ──────────────────┐');
     results.step = 'ai_enrichment';
-    console.log('[TemplateWorkflow] Enriching metadata with AI...');
+    console.log('[TemplateWorkflow] 🤖 Analyzing template with AI...');
 
     let enrichedMetadata = {
       category: 'General',
@@ -113,6 +153,8 @@ export async function processNewTemplate({ filePath, originalName, templateName 
 
     try {
       const templateData = analysisResult.template || {};
+      const aiStartTime = Date.now();
+
       enrichedMetadata = await enrichTemplateMetadata({
         filename: originalName,
         imageSlots: templateData.image_slots || 0,
@@ -121,15 +163,24 @@ export async function processNewTemplate({ filePath, originalName, templateName 
         swatches: templateData.colors || [],
         pageCount: templateData.page_count || 1
       });
-      console.log('[TemplateWorkflow] AI enrichment complete:', enrichedMetadata.category);
+
+      const aiDuration = ((Date.now() - aiStartTime) / 1000).toFixed(2);
+      console.log(`[TemplateWorkflow] ✅ AI enrichment complete in ${aiDuration}s`);
+      console.log('[TemplateWorkflow] 📊 Results:', {
+        category: enrichedMetadata.category,
+        style: enrichedMetadata.style,
+        recommended_for: enrichedMetadata.recommended_for?.length || 0
+      });
     } catch (aiError) {
-      console.warn('[TemplateWorkflow] AI enrichment failed:', aiError.message);
+      console.warn('[TemplateWorkflow] ⚠️  AI enrichment failed:', aiError.message);
       results.errors.push(`AI enrichment warning: ${aiError.message}`);
     }
+    console.log('└──────────────────────────────────────────────────────────────┘');
 
     // === ÉTAPE 6: Création de l'entrée en base de données ===
+    console.log('\n┌─ STEP 6/6: DATABASE INSERT ──────────────────────────────────┐');
     results.step = 'database_insert';
-    console.log('[TemplateWorkflow] Creating database entry...');
+    console.log('[TemplateWorkflow] 💾 Creating database entry...');
 
     const templateData = analysisResult.template || {};
     
@@ -163,17 +214,38 @@ export async function processNewTemplate({ filePath, originalName, templateName 
       throw new Error(`Database insert failed: ${insertError.message}`);
     }
 
-    console.log('[TemplateWorkflow] Template created:', insertedTemplate.id);
+    console.log('[TemplateWorkflow] ✅ Template created with ID:', insertedTemplate.id);
+    console.log('[TemplateWorkflow] 📊 Template summary:', {
+      name: insertedTemplate.name,
+      category: insertedTemplate.category,
+      imageSlots: insertedTemplate.image_slots,
+      placeholders: insertedTemplate.placeholders?.length || 0
+    });
+    console.log('└──────────────────────────────────────────────────────────────┘');
 
     // === SUCCÈS ===
     results.success = true;
     results.step = 'complete';
     results.template = insertedTemplate;
 
+    const totalDuration = ((Date.now() - workflowStartTime) / 1000).toFixed(2);
+    console.log('\n╔════════════════════════════════════════════════════════════════╗');
+    console.log('║  ✅ TEMPLATE WORKFLOW COMPLETED                                ║');
+    console.log('╚════════════════════════════════════════════════════════════════╝');
+    console.log(`[TemplateWorkflow] ⏱️  Total duration: ${totalDuration}s (${(totalDuration / 60).toFixed(1)} minutes)`);
+    console.log(`[TemplateWorkflow] 🎉 Template "${insertedTemplate.name}" ready to use!\n`);
+
     return results;
 
   } catch (error) {
-    console.error(`[TemplateWorkflow] Error at step ${results.step}:`, error);
+    const totalDuration = ((Date.now() - workflowStartTime) / 1000).toFixed(2);
+    console.error('\n╔════════════════════════════════════════════════════════════════╗');
+    console.error('║  ❌ TEMPLATE WORKFLOW FAILED                                   ║');
+    console.error('╚════════════════════════════════════════════════════════════════╝');
+    console.error(`[TemplateWorkflow] ⏱️  Failed after: ${totalDuration}s`);
+    console.error(`[TemplateWorkflow] 🔴 Error at step: ${results.step}`);
+    console.error(`[TemplateWorkflow] 📋 Error message: ${error.message}\n`);
+
     results.errors.push(error.message);
     throw error;
   }
@@ -183,7 +255,12 @@ export async function processNewTemplate({ filePath, originalName, templateName 
  * Analyse un template via l'API Flask
  */
 async function analyzeTemplateViaFlask(templatePath) {
+  const startTime = Date.now();
   try {
+    console.log('[TemplateWorkflow] 📞 Calling Flask API:', `${FLASK_API_URL}/api/templates/analyze`);
+    console.log('[TemplateWorkflow] 📄 Template path:', templatePath);
+    console.log('[TemplateWorkflow] ⏱️  Timeout set to: 600 seconds (10 minutes)');
+
     const response = await axios.post(
       `${FLASK_API_URL}/api/templates/analyze`,
       {
@@ -192,17 +269,29 @@ async function analyzeTemplateViaFlask(templatePath) {
         thumbnail_height: 600
       },
       {
-        timeout: 120000, // 2 minutes pour l'analyse InDesign
+        timeout: 600000, // 10 minutes pour l'analyse InDesign (augmenté de 5 min)
         headers: {
           'Content-Type': 'application/json'
         }
       }
     );
 
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`[TemplateWorkflow] ✅ Flask API responded in ${duration}s`);
+
     return response.data;
   } catch (error) {
-    console.error('[TemplateWorkflow] Flask API call failed:', error.message);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.error(`[TemplateWorkflow] ❌ Flask API call failed after ${duration}s:`, error.message);
+
+    if (error.code === 'ECONNABORTED') {
+      console.error('[TemplateWorkflow] ⚠️  TIMEOUT: Flask did not respond within 10 minutes');
+      console.error('[TemplateWorkflow] 💡 This might indicate InDesign is stuck or the template is very complex');
+    }
+
     if (error.response) {
+      console.error('[TemplateWorkflow] 📋 Flask response status:', error.response.status);
+      console.error('[TemplateWorkflow] 📋 Flask response data:', error.response.data);
       throw new Error(`Flask API error (${error.response.status}): ${JSON.stringify(error.response.data)}`);
     }
     throw error;

@@ -67,3 +67,4 @@ vite.config.*s.*
 
 # Other
 Indesign automation v1
+!Indesign automation v1/scripts/analyze_templates.jsx

@@ -35,6 +35,10 @@ sleep 1
 # 1. Backend Node.js avec WebSocket
 echo -e "${BLUE}📦 Démarrage Backend + WebSocket...${NC}"
 cd magflow/backend
+if [ ! -d "node_modules" ]; then
+    echo -e "${YELLOW}📦 Installation des dépendances Backend...${NC}"
+    npm install
+fi
 npm run dev > ../../backend.log 2>&1 &
 BACKEND_PID=$!
 echo -e "${GREEN}✅ Backend démarré (PID: $BACKEND_PID)${NC}"
@@ -43,17 +47,31 @@ sleep 2
 
 # 2. Flask API
 echo -e "${BLUE}🐍 Démarrage Flask API...${NC}"
-cd "/Users/alexandreerrasti/Library/Mobile Documents/com~apple~CloudDocs/Indesign automation v1"
-source venv/bin/activate
-python app.py > "/Users/alexandreerrasti/magflow0312/flask.log" 2>&1 &
+cd magflow/flask-api
+
+# Setup venv if missing
+if [ ! -d "venv" ]; then
+    echo -e "${YELLOW}⚙️  Configuration de l'environnement virtuel Python...${NC}"
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
+else
+    source venv/bin/activate
+fi
+
+python3 app.py > ../../flask.log 2>&1 &
 FLASK_PID=$!
 echo -e "${GREEN}✅ Flask démarré (PID: $FLASK_PID)${NC}"
-cd "/Users/alexandreerrasti/magflow0312"
+cd ../..
 sleep 2
 
 # 3. Frontend React
 echo -e "${BLUE}⚛️  Démarrage Frontend React...${NC}"
 cd magflow
+if [ ! -d "node_modules" ]; then
+    echo -e "${YELLOW}⚛️  Installation des dépendances Frontend...${NC}"
+    npm install
+fi
 npm run dev > ../frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo -e "${GREEN}✅ Frontend démarré (PID: $FRONTEND_PID)${NC}"

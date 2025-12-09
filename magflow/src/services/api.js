@@ -94,6 +94,25 @@ export const templatesAPI = {
   },
 
   /**
+   * Upload un nouveau template
+   * @param {FormData} formData - Données du formulaire (fichier + métadonnées)
+   * @returns {Promise<Object>} Template créé
+   */
+  async upload(formData) {
+    const response = await fetch(`${API_BASE_URL}/api/templates/upload`, {
+      method: 'POST',
+      body: formData,
+      // Ne pas mettre Content-Type header, le navigateur le gère pour FormData avec boundary
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+    }
+    return data.template;
+  },
+
+  /**
    * Crée un nouveau template (admin)
    * @param {Object} templateData - Données du template
    * @returns {Promise<Object>} Template créé

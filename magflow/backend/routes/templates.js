@@ -1,12 +1,162 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient.js';
 import { recommendTemplates } from '../services/openaiService.js';
 import { analyzeAllTemplates, analyzeOneTemplate } from '../services/templateAnalyzer.js';
 import fallbackTemplates from '../data/templatesFallback.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Configuration de l'upload pour les templates
+const templatesDir = path.resolve(__dirname, '../../Indesign automation v1');
+if (!fs.existsSync(templatesDir)) {
+  fs.mkdirSync(templatesDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, templatesDir);
+  },
+  filename: (req, file, cb) => {
+    // Garder le nom original pour que InDesign le trouve
+    // Attention aux écrasements, mais pour l'instant c'est voulu pour mettre à jour
+    cb(null, file.originalname);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 500 * 1024 * 1024 // 500MB max pour les gros fichiers InDesign
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedExts = ['.indt', '.indd'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedExts.includes(ext)) {
+      return cb(null, true);
+    }
+    cb(new Error('Format de fichier non supporté. Utilisez .indt ou .indd.'));
+  }
+});
+
 const getFallbackTemplates = () => fallbackTemplates.filter(template => template.is_active !== false);
 
 const router = express.Router();
+
+/**
+ * POST /api/templates/upload
+ * Upload un fichier InDesign, le sauvegarde et lance l'analyse
+ */
+router.post('/upload', upload.single('templateFile'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'Aucun fichier uploadé'
+      });
+    }
+
+    const { originalname, filename, path: filePath } = req.file;
+    const { name, description } = req.body;
+
+    console.log(`[Templates] File uploaded: ${filename} (${filePath})`);
+
+    let templateId;
+
+    if (isSupabaseConfigured) {
+      // Vérifier si le template existe déjà par son nom de fichier
+      const { data: existing } = await supabase
+        .from('indesign_templates')
+        .select('id')
+        .eq('filename', filename)
+        .single();
+
+      if (existing) {
+        // Mise à jour
+        console.log(`[Templates] Updating existing template ${existing.id}`);
+        const { error } = await supabase
+          .from('indesign_templates')
+          .update({
+            name: name || filename,
+            description: description || '',
+            updated_at: new Date().toISOString(),
+            is_active: true
+          })
+          .eq('id', existing.id);
+          
+        if (error) throw new Error(`Supabase update error: ${error.message}`);
+        templateId = existing.id;
+      } else {
+        // Création
+        console.log(`[Templates] Creating new template entry`);
+        const { data, error } = await supabase
+          .from('indesign_templates')
+          .insert([{
+            name: name || filename,
+            filename: filename,
+            description: description || '',
+            is_active: true,
+            // file_path n'est pas stocké en base car on utilise filename dans le dossier standard
+          }])
+          .select()
+          .single();
+          
+        if (error) throw new Error(`Supabase insert error: ${error.message}`);
+        templateId = data.id;
+      }
+
+      // Lancer l'analyse automatique immédiatement
+      console.log(`[Templates] Triggering analysis for ${templateId}...`);
+      // Note: on ne wait pas forcément l'analyse pour répondre vite, 
+      // mais ici l'utilisateur attend probablement le résultat.
+      // On va attendre pour donner un feedback complet.
+      try {
+        await analyzeOneTemplate(templateId);
+        console.log(`[Templates] Analysis completed for ${templateId}`);
+      } catch (analyzeError) {
+        console.error(`[Templates] Analysis warning: ${analyzeError.message}`);
+        // On ne fail pas la requête globale si l'analyse échoue, l'upload est OK
+      }
+
+      // Récupérer le template final à jour
+      const { data: finalTemplate } = await supabase
+        .from('indesign_templates')
+        .select('*')
+        .eq('id', templateId)
+        .single();
+
+      res.json({
+        success: true,
+        message: 'Template uploadé et analysé avec succès',
+        template: finalTemplate
+      });
+
+    } else {
+      // Mode sans base de données (dev local sans Supabase)
+      console.warn('[Templates] Supabase not configured. File uploaded but not saved to DB.');
+      res.json({
+        success: true,
+        message: 'Fichier uploadé (Mode hors ligne)',
+        template: {
+          id: 'temp-' + Date.now(),
+          filename: filename,
+          name: name || filename,
+          description: description
+        }
+      });
+    }
+
+  } catch (error) {
+    console.error('[Templates] Upload error:', error);
+    // Nettoyer le fichier si erreur (optionnel, mais propre)
+    // if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    next(error);
+  }
+});
 
 /**
  * GET /api/templates

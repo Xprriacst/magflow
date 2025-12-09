@@ -1,10 +1,15 @@
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
+});
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY
 });
 
 /**
@@ -189,95 +194,81 @@ export async function recommendTemplates(contentStructure, imageCount, available
 }
 
 /**
- * Enrichit les métadonnées d'un template avec l'IA
+ * Enrichit les métadonnées d'un template avec l'IA (Claude Sonnet 4.5)
  * @param {Object} templateData - Données extraites du template
  * @returns {Promise<Object>} Métadonnées enrichies
  */
 export async function enrichTemplateMetadata(templateData) {
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `Tu es un expert en design éditorial et templates InDesign.
-Analyse les métadonnées d'un template et suggère des catégories et styles appropriés.
+    console.log('[Claude] 🤖 Analyzing template with Claude Sonnet 4.5...');
 
-RÈGLES:
-- category: Une catégorie principale parmi: "Art & Culture", "Tech", "Business", "Lifestyle", "Mode", "Sport", "Science"
-- style: Le niveau de complexité parmi: "simple", "moyen", "complexe"
-- recommended_for: Array de 2-4 catégories pour lesquelles ce template est adapté
-- description: Description courte et attractive (max 100 caractères)
+    const prompt = `Analyse ce template InDesign et suggère des métadonnées appropriées.
 
-Base ton analyse sur:
-- Le nombre d'emplacements images (peu = simple, beaucoup = complexe)
-- Les placeholders de texte (structure éditoriale)
-- Les polices utilisées (serif = classique, sans-serif = moderne)
-- Le nombre de pages (1-2 = simple, 3+ = complexe)`
-        },
-        {
-          role: 'user',
-          content: `Analyse ce template InDesign:
+DONNÉES DU TEMPLATE:
+- Fichier: ${templateData.filename}
+- Emplacements images: ${templateData.imageSlots}
+- Pages: ${templateData.pageCount}
+- Placeholders texte: ${JSON.stringify(templateData.textPlaceholders)}
+- Polices: ${JSON.stringify(templateData.fonts?.slice(0, 5))}
 
-Fichier: ${templateData.filename}
-Emplacements images: ${templateData.imageSlots}
-Pages: ${templateData.pageCount}
-Placeholders texte: ${JSON.stringify(templateData.textPlaceholders)}
-Polices: ${JSON.stringify(templateData.fonts?.slice(0, 5))}
+CRITÈRES D'ANALYSE:
+- Nombre d'images (peu = simple, beaucoup = complexe)
+- Structure éditoriale (placeholders de texte)
+- Polices (serif = classique/élégant, sans-serif = moderne/minimaliste)
+- Nombre de pages (1-2 = simple, 3+ = complexe)
 
-Métadonnées InDesign:
-${JSON.stringify(templateData.metadata, null, 2)}`
-        }
-      ],
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
-          name: 'template_metadata',
-          strict: true,
-          schema: {
-            type: 'object',
-            properties: {
-              category: {
-                type: 'string',
-                description: 'Catégorie principale du template'
-              },
-              style: {
-                type: 'string',
-                enum: ['simple', 'moyen', 'complexe'],
-                description: 'Niveau de complexité'
-              },
-              recommended_for: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Catégories recommandées (2-4 éléments)'
-              },
-              description: {
-                type: 'string',
-                description: 'Description courte et attractive'
-              }
-            },
-            required: ['category', 'style', 'recommended_for', 'description'],
-            additionalProperties: false
-          }
-        }
-      }
+RETOURNE UN OBJET JSON avec exactement cette structure:
+{
+  "category": "une catégorie principale parmi: Art & Culture, Tech, Business, Lifestyle, Mode, Sport, Science",
+  "style": "simple | moyen | complexe",
+  "recommended_for": ["2-4 catégories pour lesquelles ce template est adapté"],
+  "description": "Description courte et attractive du template (max 100 caractères)"
+}
+
+Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
     });
 
-    const enriched = JSON.parse(response.choices[0].message.content);
-    
-    console.log(`[OpenAI] Enriched template ${templateData.filename}:`, enriched);
-    
+    // Parser la réponse de Claude
+    const content = response.content[0].text;
+
+    // Extraire le JSON de la réponse (au cas où Claude ajoute du texte)
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in Claude response');
+    }
+
+    const enriched = JSON.parse(jsonMatch[0]);
+
+    // Validation
+    if (!enriched.category || !enriched.style || !enriched.recommended_for || !enriched.description) {
+      throw new Error('Invalid response structure from Claude');
+    }
+
+    console.log(`[Claude] ✅ Enriched template ${templateData.filename}:`, enriched);
+
     return enriched;
   } catch (error) {
-    console.error('Error enriching template metadata:', error);
-    
+    console.error('[Claude] ❌ Error enriching template metadata:', error.message);
+
     // Fallback basique basé sur les données extraites
-    return {
+    const fallback = {
       category: 'Art & Culture',
       style: templateData.imageSlots <= 2 ? 'simple' : templateData.imageSlots <= 4 ? 'moyen' : 'complexe',
       recommended_for: ['Art & Culture', 'Design'],
       description: `Template avec ${templateData.imageSlots} emplacements images`
     };
+
+    console.log(`[Claude] ⚠️  Using fallback metadata:`, fallback);
+
+    return fallback;
   }
 }
 

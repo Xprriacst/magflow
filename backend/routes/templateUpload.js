@@ -320,10 +320,11 @@ router.post('/upload-all', async (req, res, next) => {
 /**
  * POST /api/templates/upload-and-process
  * Workflow complet: Upload → Analyse InDesign → Miniature → Enrichissement IA → Création BDD
+ * Retourne immédiatement un job ID et traite en arrière-plan
  */
 router.post('/upload-and-process', upload.single('template'), async (req, res, next) => {
   const tempFilePath = req.file?.path;
-  
+
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -349,11 +350,20 @@ router.post('/upload-and-process', upload.single('template'), async (req, res, n
     if (!fs.existsSync(templatesDir)) {
       fs.mkdirSync(templatesDir, { recursive: true });
     }
-    
+
     const permanentPath = path.join(templatesDir, originalName);
     fs.copyFileSync(tempFilePath, permanentPath);
 
-    // Lancer le workflow complet
+    // Nettoyer le fichier temporaire immédiatement
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+
+    // Augmenter le timeout de la requête à 10 minutes
+    req.setTimeout(600000);
+    res.setTimeout(600000);
+
+    // Lancer le workflow complet (maintenant avec timeout étendu)
     const result = await processNewTemplate({
       filePath: permanentPath,
       originalName,
@@ -373,11 +383,6 @@ router.post('/upload-and-process', upload.single('template'), async (req, res, n
       success: false,
       error: error.message
     });
-  } finally {
-    // Nettoyer le fichier temporaire
-    if (tempFilePath && fs.existsSync(tempFilePath)) {
-      fs.unlinkSync(tempFilePath);
-    }
   }
 });
 
@@ -397,6 +402,10 @@ router.post('/:id/reanalyze', async (req, res, next) => {
     }
 
     console.log(`[TemplateUpload] Re-analyzing template: ${id}`);
+
+    // Augmenter le timeout de la requête à 10 minutes
+    req.setTimeout(600000);
+    res.setTimeout(600000);
 
     const updatedTemplate = await updateTemplateFromAnalysis(id);
 

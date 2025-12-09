@@ -386,18 +386,17 @@ const SmartContentCreator = () => {
       <div className="max-w-7xl mx-auto px-6 pt-20 pb-12">
         
         {!showTemplateSelection ? (
-          /* =============== ÉTAPE 1: SAISIE DU CONTENU =============== */
-          <div className="space-y-10">
-            {/* En-tête principal */}
-            <div className="text-center space-y-6">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl mb-4">
-                <Icon name="Sparkles" size={28} className="text-white" />
+          <div className="space-y-8">
+            {/* En-tête principal - Aligné à gauche */}
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl">
+                <Icon name="Sparkles" size={20} className="text-white" />
               </div>
-              <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-3">
+              <div className="flex-1">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-2">
                   Créateur de Magazine Intelligent
                 </h1>
-                <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+                <p className="text-base text-gray-600 leading-relaxed max-w-4xl">
                   Saisissez votre contenu et nous analyserons automatiquement sa structure (titre, chapo, sous-titres, etc.) et vous permettrons de la modifier.
                 </p>
               </div>

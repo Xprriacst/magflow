@@ -17,10 +17,44 @@ const TemplatesAdmin = () => {
   const [previewEditor, setPreviewEditor] = useState(null);
   const [previewError, setPreviewError] = useState(null);
   const [updatingPreviewId, setUpdatingPreviewId] = useState(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newTemplateData, setNewTemplateData] = useState({ name: '', description: '' });
+  const [selectedFile, setSelectedFile] = useState(null);
 
   useEffect(() => {
     loadTemplates();
   }, []);
+
+  const handleCreateTemplate = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    if (!selectedFile) {
+      setError('Le fichier template est requis.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('name', newTemplateData.name || selectedFile.name); // Utilise le nom du fichier si vide
+    formData.append('description', newTemplateData.description || '');
+    formData.append('templateFile', selectedFile);
+
+    setIsLoading(true); // Afficher loading global ou local
+    
+    try {
+      await templatesAPI.upload(formData);
+      setSuccessMessage('✅ Template uploadé et analysé avec succès');
+      setNewTemplateData({ name: '', description: '' });
+      setSelectedFile(null);
+      setIsCreating(false);
+      await loadTemplates();
+    } catch (err) {
+      setError(`Erreur lors de l'upload: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadTemplates = async () => {
     setIsLoading(true);
@@ -247,23 +281,79 @@ const TemplatesAdmin = () => {
 
         {/* Actions */}
         <div className="mb-8 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                Analyse Automatique
+                Actions
               </h2>
               <p className="text-sm text-gray-600">
-                Extrait les métadonnées depuis InDesign et enrichit avec l'IA
+                Gérez vos templates et leurs métadonnées
               </p>
             </div>
-            <Button
-              onClick={handleAnalyzeAll}
-              disabled={isAnalyzing || isLoading}
-              leftIcon={<Icon name="Zap" size={18} />}
-            >
-              {isAnalyzing ? 'Analyse en cours...' : 'Analyser tous les templates'}
-            </Button>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setIsCreating(!isCreating)}
+                variant="outline"
+                leftIcon={<Icon name="Plus" size={18} />}
+              >
+                Ajouter un template
+              </Button>
+              <Button
+                onClick={handleAnalyzeAll}
+                disabled={isAnalyzing || isLoading}
+                leftIcon={<Icon name="Zap" size={18} />}
+              >
+                {isAnalyzing ? 'Analyse en cours...' : 'Analyser tous les templates'}
+              </Button>
+            </div>
           </div>
+
+          {isCreating && (
+            <div className="mb-6 p-6 bg-gray-50 rounded-lg border border-gray-200">
+              <h3 className="text-md font-semibold text-gray-900 mb-4">Importer un Template</h3>
+              <form onSubmit={handleCreateTemplate} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="Nom du template"
+                    placeholder="Ex: Magazine Lifestyle"
+                    value={newTemplateData.name}
+                    onChange={(e) => setNewTemplateData({...newTemplateData, name: e.target.value})}
+                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Fichier InDesign (.indt, .indd)
+                    </label>
+                    <input
+                      type="file"
+                      accept=".indt,.indd"
+                      onChange={(e) => setSelectedFile(e.target.files[0])}
+                      className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-l-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                      required
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Le fichier sera analysé automatiquement après l'upload.</p>
+                  </div>
+                </div>
+                <Input
+                  label="Description"
+                  placeholder="Courte description..."
+                  value={newTemplateData.description}
+                  onChange={(e) => setNewTemplateData({...newTemplateData, description: e.target.value})}
+                />
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setIsCreating(false)}
+                  >
+                    Annuler
+                  </Button>
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? 'Upload en cours...' : 'Importer et Analyser'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
 
           {isAnalyzing && (
             <div className="mt-4 p-4 bg-indigo-50 rounded-lg">
