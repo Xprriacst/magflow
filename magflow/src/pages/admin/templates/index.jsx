@@ -20,6 +20,7 @@ const TemplatesAdmin = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [newTemplateData, setNewTemplateData] = useState({ name: '', description: '' });
   const [selectedFile, setSelectedFile] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     loadTemplates();
@@ -229,6 +230,29 @@ const TemplatesAdmin = () => {
       setError(`Impossible de supprimer l'image: ${err.message}`);
     } finally {
       setUpdatingPreviewId(null);
+    }
+  };
+
+  const handleDeleteTemplate = async (template) => {
+    const confirmed = window.confirm(
+      `Êtes-vous sûr de vouloir supprimer le template "${template.name}" ?\n\nCette action est irréversible.`
+    );
+    
+    if (!confirmed) return;
+
+    setDeletingId(template.id);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      await templatesAPI.delete(template.id);
+      setTemplates((prev) => prev.filter((t) => t.id !== template.id));
+      setSuccessMessage(`🗑️ Template "${template.name}" supprimé avec succès.`);
+    } catch (err) {
+      console.error('[TemplatesAdmin] Delete failed:', err);
+      setError(`Erreur lors de la suppression: ${err.message}`);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -451,6 +475,15 @@ const TemplatesAdmin = () => {
                                 : template.preview_url
                                   ? "Modifier l'image"
                                   : 'Ajouter une image'}
+                            </Button>
+                            <Button
+                              onClick={() => handleDeleteTemplate(template)}
+                              variant="danger"
+                              size="sm"
+                              disabled={deletingId === template.id}
+                              leftIcon={<Icon name="Trash2" size={14} />}
+                            >
+                              {deletingId === template.id ? 'Suppression...' : 'Supprimer'}
                             </Button>
                           </div>
                         </div>

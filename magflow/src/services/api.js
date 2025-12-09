@@ -165,6 +165,18 @@ export const templatesAPI = {
     });
     return data.template;
   },
+
+  /**
+   * Supprime un template
+   * @param {string} templateId - ID du template
+   * @returns {Promise<Object>} Résultat de la suppression
+   */
+  async delete(templateId) {
+    const data = await apiCall(`/api/templates/${templateId}`, {
+      method: 'DELETE',
+    });
+    return data;
+  },
 };
 
 /**

@@ -542,4 +542,55 @@ router.put('/:id/preview', async (req, res, next) => {
   }
 });
 
+/**
+ * DELETE /api/templates/:id
+ * Supprime un template (admin)
+ */
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!isSupabaseConfigured) {
+      return res.status(503).json({
+        success: false,
+        error: 'Supabase not configured'
+      });
+    }
+
+    // Vérifier que le template existe
+    const { data: existing, error: fetchError } = await supabase
+      .from('indesign_templates')
+      .select('id, name, filename')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !existing) {
+      return res.status(404).json({
+        success: false,
+        error: 'Template not found'
+      });
+    }
+
+    // Supprimer le template
+    const { error: deleteError } = await supabase
+      .from('indesign_templates')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      throw new Error(`Database error: ${deleteError.message}`);
+    }
+
+    console.log(`[Templates] Deleted template ${id} (${existing.name})`);
+
+    res.json({
+      success: true,
+      message: `Template "${existing.name}" supprimé`,
+      deletedId: id
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
