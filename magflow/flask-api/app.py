@@ -394,11 +394,59 @@ def validate_and_clean_instructions(instructions):
     
     return instructions
 
+def detect_indesign_app():
+    """Détecte automatiquement la version d'InDesign installée"""
+    import glob
+    # Chercher dans /Applications
+    patterns = [
+        '/Applications/Adobe InDesign 202*/Adobe InDesign 202*.app',
+        '/Applications/Adobe InDesign 202*.app',
+        '/Applications/Adobe InDesign CC 202*/Adobe InDesign CC 202*.app'
+    ]
+    for pattern in patterns:
+        matches = sorted(glob.glob(pattern), reverse=True)  # Plus récent en premier
+        if matches:
+            # Extraire le nom de l'app depuis le chemin
+            app_path = matches[0]
+            app_name = os.path.basename(app_path).replace('.app', '')
+            return app_name
+    
+    # Fallback: lister directement /Applications
+    try:
+        apps = os.listdir('/Applications')
+        indesign_apps = sorted([a for a in apps if 'InDesign' in a and a.endswith('.app')], reverse=True)
+        if indesign_apps:
+            return indesign_apps[0].replace('.app', '')
+        # Chercher les dossiers Adobe InDesign XXXX
+        indesign_folders = sorted([a for a in apps if a.startswith('Adobe InDesign 20')], reverse=True)
+        if indesign_folders:
+            return indesign_folders[0]
+    except:
+        pass
+    
+    return 'Adobe InDesign 2026'  # Fallback par défaut
+
+# Cache la détection au démarrage
+_DETECTED_INDESIGN_APP = None
+
+def get_indesign_app():
+    """Retourne le nom de l'app InDesign (avec cache)"""
+    global _DETECTED_INDESIGN_APP
+    # Priorité 1: Variable d'environnement
+    env_app = os.getenv('INDESIGN_APP_NAME')
+    if env_app:
+        return env_app
+    # Priorité 2: Détection automatique (cachée)
+    if _DETECTED_INDESIGN_APP is None:
+        _DETECTED_INDESIGN_APP = detect_indesign_app()
+        print(f"🎨 InDesign détecté: {_DETECTED_INDESIGN_APP}")
+    return _DETECTED_INDESIGN_APP
+
 def execute_indesign_script(project_id, config_path):
     """Exécute le script InDesign pour créer la mise en page"""
     try:
         script_path = os.path.join(os.getcwd(), 'scripts', 'template_simple_working.jsx')
-        indesign_app = os.getenv('INDESIGN_APP_NAME', 'Adobe InDesign 2025')
+        indesign_app = get_indesign_app()
         # Commande pour exécuter le script InDesign
         # Sur macOS, utiliser osascript avec un fichier temporaire
         import tempfile

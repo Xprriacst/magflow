@@ -174,9 +174,14 @@ async function updateTemplateInDatabase(templateId, metadata, previewUrl) {
   try {
     const client = supabaseAdmin || supabase;
     
+    // Dédupliquer les placeholders pour éviter les erreurs React "duplicate key"
+    const uniquePlaceholders = metadata.placeholders 
+      ? [...new Set(metadata.placeholders)]
+      : [];
+    
     const updateData = {
       image_slots: metadata.image_slots,
-      placeholders: metadata.placeholders,
+      placeholders: uniquePlaceholders,
       category: metadata.category,
       style: metadata.style,
       recommended_for: metadata.recommended_for,

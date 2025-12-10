@@ -130,19 +130,16 @@ function extractPlaceholders(doc) {
         var frame = doc.textFrames[i];
         var content = frame.contents;
         
-        // Chercher les patterns {{PLACEHOLDER}}
-        var regex = /\{\{([A-Z_0-9]+)\}\}/g;
-        var match;
-        
-        // ExtendScript n'a pas exec(), on utilise match()
-        var matches = content.match(/\{\{[A-Z_0-9]+\}\}/g);
+        // Chercher les patterns {{PLACEHOLDER}} (lettres, chiffres, underscores)
+        var matches = content.match(/\{\{[A-Za-z_0-9]+\}\}/g);
         if (matches) {
             for (var j = 0; j < matches.length; j++) {
                 var placeholder = matches[j];
-                if (!seen[placeholder]) {
-                    seen[placeholder] = true;
-                    // Extraire le nom sans les accolades
-                    var name = placeholder.replace(/\{\{|\}\}/g, '');
+                // Extraire le nom sans les accolades et normaliser en majuscules
+                var name = placeholder.replace(/\{\{|\}\}/g, '').toUpperCase();
+                // Dédupliquer
+                if (!seen[name]) {
+                    seen[name] = true;
                     placeholders.push(name);
                 }
             }
@@ -259,26 +256,39 @@ function generateThumbnail(doc, outputPath, width, height) {
         // Créer les options d'export JPEG
         var exportFile = new File(outputPath);
         
-        // Options d'export
+        // Réinitialiser les préférences d'export JPEG
         app.jpegExportPreferences.exportingSpread = false;
         app.jpegExportPreferences.jpegQuality = JPEGOptionsQuality.HIGH;
         app.jpegExportPreferences.jpegRenderingStyle = JPEGOptionsFormat.PROGRESSIVE_ENCODING;
+        app.jpegExportPreferences.antiAlias = true;
+        app.jpegExportPreferences.useDocumentBleeds = false;
+        
+        // IMPORTANT: Utiliser RANGE pour exporter une seule page
+        app.jpegExportPreferences.jpegExportRange = ExportRangeOrAllPages.EXPORT_RANGE;
+        
+        // Obtenir le nom de la première page (peut être différent de "1")
+        var firstPage = doc.pages[0];
+        var pageName = firstPage.name; // Utilise le nom réel de la page
+        app.jpegExportPreferences.pageString = pageName;
         
         // Calculer la résolution pour obtenir la taille désirée
-        var page = doc.pages[0];
-        var pageWidth = page.bounds[3] - page.bounds[1];
-        var pageHeight = page.bounds[2] - page.bounds[0];
+        var pageWidth = firstPage.bounds[3] - firstPage.bounds[1];
+        var pageHeight = firstPage.bounds[2] - firstPage.bounds[0];
         
-        // Résolution en fonction de la largeur désirée (72 dpi par défaut pour les pages)
-        var resolution = Math.round((width / pageWidth) * 72);
-        resolution = Math.min(Math.max(resolution, 72), 300); // Entre 72 et 300 dpi
+        // Résolution fixe de 150 dpi pour des miniatures de bonne qualité
+        // (évite les problèmes de calcul variable)
+        app.jpegExportPreferences.exportResolution = 150;
         
-        app.jpegExportPreferences.exportResolution = resolution;
-        
-        // Exporter seulement la première page
-        app.jpegExportPreferences.pageString = "1";
-        
+        // Exporter
         doc.exportFile(ExportFormat.JPG, exportFile, false);
+        
+        // Vérifier que le fichier a été créé
+        if (!exportFile.exists) {
+            return {
+                success: false,
+                error: 'Export file was not created'
+            };
+        }
         
         return {
             success: true,

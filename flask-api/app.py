@@ -392,15 +392,23 @@ def execute_indesign_script(project_id, config_path):
     try:
         script_path = os.path.join(os.getcwd(), 'scripts', 'template_simple_working.jsx')
         indesign_app = os.getenv('INDESIGN_APP_NAME', 'Adobe InDesign 2026')
+        
+        # S'assurer que config_path est un chemin absolu
+        abs_config_path = os.path.abspath(config_path)
+        
+        # Écrire le chemin du config dans un fichier que le script JSX lira
+        # (InDesign 2026 ne supporte pas bien scriptArgs)
+        config_pointer_path = os.path.join(os.getcwd(), 'current_config.txt')
+        with open(config_pointer_path, 'w') as f:
+            f.write(abs_config_path)
+        
         # Commande pour exécuter le script InDesign
-        # Sur macOS, utiliser osascript avec un fichier temporaire
+        # Sur macOS, utiliser osascript
         import tempfile
         
-        # Créer un script AppleScript temporaire avec scriptArgs pour passer le configPath
         applescript_content = f'''
 tell application "{indesign_app}"
     activate
-    set script args of script preferences to {{{{class:script arg, name:"configPath", value:"{config_path}"}}}}
     do script POSIX file "{script_path}" language javascript
 end tell
 '''

@@ -1,0 +1,47 @@
+{
+  "project_id": "656cb5d7-3da8-4176-ae5d-91ff76083769",
+  "prompt": "🐲 Une philosophie autant qu’un combat",
+  "text_content": "Le kung-fu ne se limite pas aux affrontements. C’est un système complet où se croisent :\n\nLe kung-fu ne se limite pas aux affrontements. C’est un système complet où se croisent :\n\nDiscipline mentale\n\nDiscipline mentale : concentration, persévérance, contrôle de soi\n\nÉquilibre interne\n\nÉquilibre interne : harmonie du Qi, respiration, relaxation\n\nObservation de la nature\n\nObservation de la nature : mouvements inspirés des animaux (tigre, grue, serpent…)\n\nÉthique\n\nÉthique : humilité, respect, non-violence, maîtrise de ses émotions\n\nLe principe fondamental\n\nLe principe fondamental : “La victoire sans combat est la plus haute maîtrise.”",
+  "subtitle": "Le kung-fu ne se limite pas aux affrontements. C’est un système complet où se croisent :",
+  "images": [
+    "/Users/alexandreerrasti/magflow0312/magflow/flask-api/uploads/656cb5d7-3da8-4176-ae5d-91ff76083769/image_1.jpg"
+  ],
+  "template": "template-mag-simple-2-1808.indt",
+  "layout_instructions": {
+    "title_text": "Titre de l'article",
+    "title_style": {
+      "font_size": 24,
+      "font_family": "Arial Bold",
+      "color": "#000000",
+      "position": "top_center"
+    },
+    "text_layout": {
+      "columns": 2,
+      "alignment": "justified",
+      "font_size": 11,
+      "line_spacing": 14
+    },
+    "image_placement": [
+      {
+        "position": "top_right",
+        "width": "40%",
+        "height": "auto"
+      },
+      {
+        "position": "bottom_left",
+        "width": "60%",
+        "height": "auto"
+      }
+    ],
+    "color_scheme": [
+      "#000000",
+      "#333333",
+      "#666666"
+    ],
+    "typography": {
+      "heading_font": "Arial Bold",
+      "body_font": "Arial Regular"
+    }
+  },
+  "created_at": "2025-12-10T21:14:45.178705"
+}

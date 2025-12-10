@@ -99,8 +99,8 @@ router.post('/upload', upload.single('templateFile'), async (req, res, next) => 
             name: name || filename,
             filename: filename,
             description: description || '',
+            file_path: filePath, // Chemin du fichier uploadé
             is_active: true,
-            // file_path n'est pas stocké en base car on utilise filename dans le dossier standard
           }])
           .select()
           .single();
@@ -189,11 +189,17 @@ router.get('/', async (req, res, next) => {
       });
     }
 
-    const templates = data && data.length > 0 ? data : getFallbackTemplates();
+    let templates = data && data.length > 0 ? data : getFallbackTemplates();
 
     if (!data || data.length === 0) {
       console.warn('[Templates] No templates found in Supabase, using fallback list.');
     }
+
+    // Dédupliquer les placeholders pour éviter les erreurs React "duplicate key"
+    templates = templates.map(t => ({
+      ...t,
+      placeholders: t.placeholders ? [...new Set(t.placeholders)] : []
+    }));
 
     res.json({
       success: true,
