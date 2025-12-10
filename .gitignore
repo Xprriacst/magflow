@@ -68,5 +68,8 @@ vite.config.*s.*
 # Other
 Indesign automation v1
 
+# InDesign lock files
+*.idlk
+
 # Local Netlify folder
 .netlify

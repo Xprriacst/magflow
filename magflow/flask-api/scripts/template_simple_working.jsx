@@ -115,84 +115,150 @@ function main() {
 }
 
 function processDocument(doc, config) {
-    // A. Remplissage des Textes
-    // On cherche les frames par leur nom de script (label) ou par contenu placeholder
+    // A. Remplissage des Textes - DÉTECTION INTELLIGENTE
     
-    // Mapping des champs config -> placeholders potentiels
-    var textMapping = {
-        "titre": ["{{titre}}", "[Titre]", "Titre Principal", "Titre de l'article"],
-        "chapo": ["{{chapo}}", "[Chapo]", "Chapo", "Introduction"],
-        "text_content": ["{{texte}}", "[Texte]", "Texte Principal", "Corps de texte"],
-        "subtitle": ["{{sous-titre}}", "[Sous-titre]", "Sous-titre"]
-    };
-
-    // Ajouter les valeurs directes de la config
+    // Données à injecter
     var data = {
-        "titre": config.prompt || config.title_text, // Fallback
-        "chapo": config.subtitle,
-        "text_content": config.text_content
+        "titre": config.prompt || config.title_text || "",
+        "chapo": config.subtitle || "",
+        "text_content": config.text_content || ""
     };
     
-    // Si l'IA a généré des instructions précises
-    if (config.layout_instructions) {
-        if (config.layout_instructions.title_text) data.titre = config.layout_instructions.title_text;
-    }
-
+    // Collecter tous les TextFrames avec leurs caractéristiques
+    var textFrames = [];
     var allItems = doc.allPageItems;
     
     for (var i = 0; i < allItems.length; i++) {
         var item = allItems[i];
+        if (item instanceof TextFrame && item.contents.length > 0) {
+            var bounds = item.geometricBounds; // [top, left, bottom, right]
+            var fontSize = 12; // défaut
+            try {
+                if (item.paragraphs.length > 0 && item.paragraphs[0].pointSize) {
+                    fontSize = item.paragraphs[0].pointSize;
+                }
+            } catch(e) {}
+            
+            textFrames.push({
+                frame: item,
+                top: bounds[0],
+                left: bounds[1],
+                width: bounds[3] - bounds[1],
+                height: bounds[2] - bounds[0],
+                fontSize: fontSize,
+                content: item.contents,
+                label: item.label || "",
+                charCount: item.contents.length
+            });
+        }
+    }
+    
+    // Trier par position (haut vers bas, gauche vers droite)
+    textFrames.sort(function(a, b) {
+        if (Math.abs(a.top - b.top) < 10) return a.left - b.left;
+        return a.top - b.top;
+    });
+    
+    // Identifier les rôles par heuristiques
+    var titreFrame = null;
+    var articleFrame = null;
+    var chapoFrame = null;
+    
+    for (var j = 0; j < textFrames.length; j++) {
+        var tf = textFrames[j];
         
-        // TEXTES
-        if (item instanceof TextFrame) {
-            // 1. Par Script Label (Prioritaire)
-            if (item.label && data[item.label]) {
-                item.contents = data[item.label];
+        // 1. Par Script Label (prioritaire)
+        if (tf.label.toLowerCase() === "titre" || tf.label.toLowerCase() === "title") {
+            titreFrame = tf;
+            continue;
+        }
+        if (tf.label.toLowerCase() === "article" || tf.label.toLowerCase() === "texte" || tf.label.toLowerCase() === "body") {
+            articleFrame = tf;
+            continue;
+        }
+        if (tf.label.toLowerCase() === "chapo" || tf.label.toLowerCase() === "intro" || tf.label.toLowerCase() === "subtitle") {
+            chapoFrame = tf;
+            continue;
+        }
+        
+        // 2. Par contenu placeholder ({{...}} ou texte connu)
+        var content = tf.content.toUpperCase();
+        if (content.indexOf("{{TITRE}}") !== -1 || content.indexOf("{{TITLE}}") !== -1) {
+            titreFrame = tf;
+            continue;
+        }
+        if (content.indexOf("{{ARTICLE}}") !== -1 || content.indexOf("{{TEXTE}}") !== -1 || content.indexOf("{{BODY}}") !== -1) {
+            articleFrame = tf;
+            continue;
+        }
+        if (content.indexOf("{{CHAPO}}") !== -1 || content.indexOf("{{INTRO}}") !== -1 || content.indexOf("{{SUBTITLE}}") !== -1) {
+            chapoFrame = tf;
+            continue;
+        }
+    }
+    
+    // 3. Détection par heuristiques si pas trouvé
+    if (!titreFrame || !articleFrame) {
+        for (var k = 0; k < textFrames.length; k++) {
+            var tf2 = textFrames[k];
+            if (tf2 === titreFrame || tf2 === articleFrame || tf2 === chapoFrame) continue;
+            
+            // TITRE: grande police (>18pt) OU en haut de page OU texte court (<100 chars)
+            if (!titreFrame && (tf2.fontSize >= 18 || (tf2.top < 100 && tf2.charCount < 100))) {
+                titreFrame = tf2;
                 continue;
             }
             
-            // 2. Par remplacement de contenu
-            var text = item.contents;
-            if (text.length < 100) { // Optimisation
-                for (var key in textMapping) {
-                    var placeholders = textMapping[key];
-                    for (var p = 0; p < placeholders.length; p++) {
-                        if (text.indexOf(placeholders[p]) !== -1 && data[key]) {
-                            item.contents = data[key];
-                            break;
-                        }
-                    }
-                }
+            // ARTICLE: le plus long texte OU grande surface
+            if (!articleFrame && (tf2.charCount > 200 || (tf2.width > 200 && tf2.height > 100))) {
+                articleFrame = tf2;
+                continue;
+            }
+            
+            // CHAPO: texte moyen, entre titre et article
+            if (!chapoFrame && tf2.charCount > 50 && tf2.charCount < 300 && tf2.fontSize >= 10 && tf2.fontSize < 18) {
+                chapoFrame = tf2;
             }
         }
+    }
+    
+    // 4. Appliquer les remplacements
+    if (titreFrame && data.titre) {
+        titreFrame.frame.contents = data.titre;
+    }
+    if (articleFrame && data.text_content) {
+        articleFrame.frame.contents = data.text_content;
+    }
+    if (chapoFrame && data.chapo) {
+        chapoFrame.frame.contents = data.chapo;
+    }
+    
+    // B. IMAGES - Remplir les rectangles vides séquentiellement
+    var imageIndex = 0;
+    
+    for (var m = 0; m < allItems.length; m++) {
+        var imgItem = allItems[m];
         
-        // IMAGES
-        // On remplit les rectangles d'images séquentiellement
-        else if ((item instanceof Rectangle || item instanceof Polygon || item instanceof Oval) && 
-                 (item.contentType === ContentType.GRAPHIC_TYPE || item.contentType === ContentType.UNASSIGNED)) {
+        if ((imgItem instanceof Rectangle || imgItem instanceof Polygon || imgItem instanceof Oval) && 
+            (imgItem.contentType === ContentType.GRAPHIC_TYPE || imgItem.contentType === ContentType.UNASSIGNED)) {
             
             // Vérifier si c'est un placeholder d'image (taille suffisante)
-            var bounds = item.geometricBounds;
-            var w = bounds[3] - bounds[1];
-            var h = bounds[2] - bounds[0];
+            var imgBounds = imgItem.geometricBounds;
+            var w = imgBounds[3] - imgBounds[1];
+            var h = imgBounds[2] - imgBounds[0];
             
-            if (w > 20 && h > 20) {
-                // On utilise une propriété statique pour compter les images déjà placées
-                if (typeof main.imageIndex == 'undefined') main.imageIndex = 0;
+            if (w > 20 && h > 20 && config.images && imageIndex < config.images.length) {
+                var imagePath = config.images[imageIndex];
+                var imgFile = new File(imagePath);
                 
-                if (config.images && main.imageIndex < config.images.length) {
-                    var imagePath = config.images[main.imageIndex];
-                    var imgFile = new File(imagePath);
-                    
-                    if (imgFile.exists) {
-                        try {
-                            item.place(imgFile);
-                            item.fit(FitOptions.FILL_PROPORTIONALLY);
-                            item.fit(FitOptions.CENTER_CONTENT);
-                            main.imageIndex++;
-                        } catch(e) {
-                            // Ignorer erreur de placement
-                        }
+                if (imgFile.exists) {
+                    try {
+                        imgItem.place(imgFile);
+                        imgItem.fit(FitOptions.FILL_PROPORTIONALLY);
+                        imgItem.fit(FitOptions.CENTER_CONTENT);
+                        imageIndex++;
+                    } catch(e) {
+                        // Ignorer erreur de placement
                     }
                 }
             }
