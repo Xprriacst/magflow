@@ -13,19 +13,16 @@ const anthropic = new Anthropic({
 });
 
 /**
- * Analyse la structure éditoriale d'un contenu
+ * Analyse la structure éditoriale d'un contenu avec Claude Sonnet 4
  * EXTRACTION PURE - Ne reformule JAMAIS le contenu original
  * @param {string} content - Le contenu textuel à analyser
  * @returns {Promise<Object>} Structure éditoriale analysée
  */
 export async function analyzeContentStructure(content) {
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `Tu es un analyseur de structure éditoriale. 
+    console.log('[Claude] 🤖 Analyzing content structure with Claude Sonnet 4...');
+
+    const prompt = `Tu es un analyseur de structure éditoriale. 
 Ton rôle est d'IDENTIFIER et EXTRAIRE les différentes parties d'un article, SANS RIEN REFORMULER.
 
 RÈGLES STRICTES - IMPÉRATIF :
@@ -36,107 +33,63 @@ RÈGLES STRICTES - IMPÉRATIF :
 5. Si un titre n'existe pas, extraire les premiers mots significatifs TELS QUELS
 6. Copier-coller le texte original sans aucune modification
 
-Ta mission : ANALYSER la structure, PAS créer du contenu.`
-        },
-        {
-          role: 'user',
-          content: `EXTRAIT tel quel la structure de ce contenu (NE RIEN REFORMULER) :\n\n${content}`
-        }
-      ],
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
-          name: 'content_structure',
-          strict: true,
-          schema: {
-            type: 'object',
-            properties: {
-              titre_principal: { 
-                type: 'string',
-                description: 'EXTRAIRE tel quel le titre existant dans le texte'
-              },
-              chapo: { 
-                type: 'string',
-                description: 'EXTRAIRE tel quel le premier paragraphe ou introduction'
-              },
-              sous_titres: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'EXTRAIRE tels quels les sous-titres présents dans le texte'
-              },
-              sections: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    titre: { 
-                      type: 'string',
-                      description: 'EXTRAIRE tel quel le titre de section'
-                    },
-                    contenu: { 
-                      type: 'string',
-                      description: 'EXTRAIRE tel quel le contenu sans modification'
-                    },
-                    type: { 
-                      type: 'string', 
-                      enum: ['introduction', 'corps', 'conclusion', 'citation', 'encadre'],
-                      description: 'Type de section identifié'
-                    }
-                  },
-                  required: ['titre', 'contenu', 'type'],
-                  additionalProperties: false
-                },
-                description: 'Sections extraites du texte original'
-              },
-              mots_cles: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Mots-clés principaux identifiés (peuvent être extraits ou inférés)'
-              },
-              categorie_suggeree: { 
-                type: 'string',
-                description: 'Catégorie éditoriale suggérée'
-              },
-              structure_detectee: {
-                type: 'object',
-                properties: {
-                  nombre_sections: { type: 'number' },
-                  nombre_mots: { type: 'number' },
-                  images_mentionnees: { type: 'number' }
-                },
-                required: ['nombre_sections', 'nombre_mots', 'images_mentionnees'],
-                additionalProperties: false,
-                description: 'Métadonnées sur la structure détectée'
-              },
-              longueur_estimee: { type: 'number' },
-              temps_lecture: { type: 'number' },
-              niveau_complexite: { 
-                type: 'string', 
-                enum: ['simple', 'moyen', 'complexe'] 
-              }
-            },
-            required: [
-              'titre_principal', 
-              'chapo', 
-              'sous_titres', 
-              'sections', 
-              'mots_cles', 
-              'categorie_suggeree',
-              'structure_detectee',
-              'longueur_estimee',
-              'temps_lecture',
-              'niveau_complexite'
-            ],
-            additionalProperties: false
-          }
-        }
-      }
+Ta mission : ANALYSER la structure, PAS créer du contenu.
+
+EXTRAIT tel quel la structure de ce contenu (NE RIEN REFORMULER) :
+
+${content}
+
+RETOURNE UN OBJET JSON avec exactement cette structure:
+{
+  "titre_principal": "EXTRAIRE tel quel le titre existant dans le texte",
+  "chapo": "EXTRAIRE tel quel le premier paragraphe ou introduction",
+  "sous_titres": ["EXTRAIRE tels quels les sous-titres présents dans le texte"],
+  "sections": [
+    {
+      "titre": "EXTRAIRE tel quel le titre de section",
+      "contenu": "EXTRAIRE tel quel le contenu sans modification",
+      "type": "introduction | corps | conclusion | citation | encadre"
+    }
+  ],
+  "mots_cles": ["Mots-clés principaux identifiés"],
+  "categorie_suggeree": "Catégorie éditoriale suggérée",
+  "structure_detectee": {
+    "nombre_sections": 0,
+    "nombre_mots": 0,
+    "images_mentionnees": 0
+  },
+  "longueur_estimee": 0,
+  "temps_lecture": 0,
+  "niveau_complexite": "simple | moyen | complexe"
+}
+
+Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-4-5-sonnet-20250514',
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
     });
 
-    return JSON.parse(response.choices[0].message.content);
+    // Parser la réponse de Claude
+    const responseContent = response.content[0].text;
+
+    // Extraire le JSON de la réponse
+    const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in Claude response');
+    }
+
+    const structure = JSON.parse(jsonMatch[0]);
+    console.log('[Claude] ✅ Content structure analyzed:', structure.titre_principal);
+
+    return structure;
   } catch (error) {
-    console.error('Error analyzing content structure:', error);
-    throw new Error(`OpenAI API Error: ${error.message}`);
+    console.error('[Claude] ❌ Error analyzing content structure:', error);
+    throw new Error(`Claude API Error: ${error.message}`);
   }
 }
 
@@ -228,7 +181,7 @@ RETOURNE UN OBJET JSON avec exactement cette structure:
 Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-4-5-sonnet-20250514',
       max_tokens: 1024,
       messages: [{
         role: 'user',
