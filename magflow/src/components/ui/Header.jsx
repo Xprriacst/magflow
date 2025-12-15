@@ -25,23 +25,11 @@ const Header = () => {
       tooltip: 'Créateur intelligent de magazines avec IA'
     },
     { 
-      name: 'Projets', 
-      path: '/dashboard', 
-      icon: 'FolderOpen',
-      tooltip: 'Gestion des projets et tableau de bord'
-    },
-    { 
       name: 'Modèles', 
       path: '/admin/templates', 
       icon: 'Layout',
       tooltip: 'Gestion et configuration des templates'
     },
-    { 
-      name: 'Traitement', 
-      path: '/processing-status', 
-      icon: 'Settings',
-      tooltip: 'Suivi du traitement et statut'
-    }
   ];
 
   const currentUser = {
