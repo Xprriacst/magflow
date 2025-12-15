@@ -179,12 +179,14 @@ def create_layout():
                 'success': True,
                 'project_id': project_id,
                 'message': 'Mise en page créée avec succès',
-                'output_file': result.get('output_file')
+                'output_file': result.get('output_file'),
+                'indesign_app': result.get('indesign_app')
             })
         else:
             return jsonify({
                 'success': False,
-                'error': result.get('error', 'Erreur lors de la création de la mise en page')
+                'error': result.get('error', 'Erreur lors de la création de la mise en page'),
+                'indesign_app': result.get('indesign_app')
             }), 500
             
     except Exception as e:
@@ -256,12 +258,14 @@ def create_layout_urls():
                 'success': True,
                 'project_id': project_id,
                 'message': 'Mise en page créée avec succès',
-                'output_file': result.get('output_file')
+                'output_file': result.get('output_file'),
+                'indesign_app': result.get('indesign_app')
             })
         else:
             return jsonify({
                 'success': False,
-                'error': result.get('error', 'Erreur lors de la création de la mise en page')
+                'error': result.get('error', 'Erreur lors de la création de la mise en page'),
+                'indesign_app': result.get('indesign_app')
             }), 500
     except Exception as e:
         return jsonify({'error': f'Erreur serveur: {str(e)}'}), 500
@@ -442,11 +446,29 @@ def get_indesign_app():
         print(f"🎨 InDesign détecté: {_DETECTED_INDESIGN_APP}")
     return _DETECTED_INDESIGN_APP
 
+
+def _check_indesign_ready(indesign_app: str):
+    """Vérifie qu'AppleScript voit bien l'app InDesign ciblée."""
+    try:
+        probe = ['osascript', '-e', f'tell application "{indesign_app}" to return true']
+        res = subprocess.run(probe, capture_output=True, text=True, timeout=10)
+        if res.returncode != 0:
+            stderr = (res.stderr or '').strip()
+            stdout = (res.stdout or '').strip()
+            details = stderr or stdout or 'InDesign non accessible'
+            return False, f'InDesign introuvable ou non accessible: "{indesign_app}" ({details})'
+        return True, None
+    except Exception as e:
+        return False, f'Impossible de vérifier InDesign "{indesign_app}": {e}'
+
 def execute_indesign_script(project_id, config_path):
     """Exécute le script InDesign pour créer la mise en page"""
     try:
         script_path = os.path.join(os.getcwd(), 'scripts', 'template_simple_working.jsx')
         indesign_app = get_indesign_app()
+        ok, indesign_err = _check_indesign_ready(indesign_app)
+        if not ok:
+            return {'success': False, 'error': indesign_err, 'indesign_app': indesign_app}
         # Commande pour exécuter le script InDesign
         # Sur macOS, utiliser osascript avec un fichier temporaire
         import tempfile
@@ -475,23 +497,27 @@ end tell
             return {
                 'success': True,
                 'output_file': output_file,
-                'message': 'Script InDesign exécuté avec succès'
+                'message': 'Script InDesign exécuté avec succès',
+                'indesign_app': indesign_app
             }
         else:
             return {
                 'success': False,
-                'error': f'Erreur script InDesign: {result.stderr}'
+                'error': f'Erreur script InDesign: {result.stderr}',
+                'indesign_app': indesign_app
             }
             
     except subprocess.TimeoutExpired:
         return {
             'success': False,
-            'error': 'Timeout lors de l\'exécution du script InDesign'
+            'error': 'Timeout lors de l\'exécution du script InDesign',
+            'indesign_app': get_indesign_app()
         }
     except Exception as e:
         return {
             'success': False,
-            'error': f'Erreur lors de l\'exécution: {str(e)}'
+            'error': f'Erreur lors de l\'exécution: {str(e)}',
+            'indesign_app': get_indesign_app()
         }
 
 @app.route('/api/download/<project_id>')
