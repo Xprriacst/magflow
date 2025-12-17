@@ -11,7 +11,7 @@
 [context.production]
   command = "npm run build"
   [context.production.environment]
-    VITE_API_URL = "https://magflow-api.onrender.com"
+    VITE_API_URL = "https://magflow.onrender.com"
     VITE_ENV = "production"
 
 # ============================================
