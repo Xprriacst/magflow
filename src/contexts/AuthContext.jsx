@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import api from '../services/api';
 
 const AuthContext = createContext({});
 
@@ -17,82 +17,97 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+    // Check for existing session on mount
+    const token = localStorage.getItem('magflow_token');
+    const storedUser = localStorage.getItem('magflow_user');
+    
+    if (token && storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
+        setSession({ access_token: token });
+      } catch (error) {
+        console.error('Error parsing stored user:', error);
+        localStorage.removeItem('magflow_token');
+        localStorage.removeItem('magflow_user');
       }
-    );
-
-    return () => subscription.unsubscribe();
+    }
+    
+    setLoading(false);
   }, []);
 
   const signUp = async (email, password, metadata = {}) => {
-    if (!supabase) throw new Error('Supabase not configured');
-    
-    const { data, error } = await supabase.auth.signUp({
+    const response = await api.post('/api/auth/register', {
       email,
       password,
-      options: {
-        data: metadata
-      }
+      fullName: metadata.full_name || metadata.fullName,
+      companyName: metadata.company_name || metadata.companyName
     });
     
-    if (error) throw error;
-    return data;
+    if (response.success) {
+      const { token, user } = response;
+      localStorage.setItem('magflow_token', token);
+      localStorage.setItem('magflow_user', JSON.stringify(user));
+      setUser(user);
+      setSession({ access_token: token });
+      return { user, session: { access_token: token } };
+    } else {
+      throw new Error(response.error || 'Registration failed');
+    }
   };
 
   const signIn = async (email, password) => {
-    if (!supabase) throw new Error('Supabase not configured');
-    
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const response = await api.post('/api/auth/login', {
       email,
       password
     });
     
-    if (error) throw error;
-    return data;
+    if (response.success) {
+      const { token, user } = response;
+      localStorage.setItem('magflow_token', token);
+      localStorage.setItem('magflow_user', JSON.stringify(user));
+      setUser(user);
+      setSession({ access_token: token });
+      return { user, session: { access_token: token } };
+    } else {
+      throw new Error(response.error || 'Login failed');
+    }
   };
 
   const signOut = async () => {
-    if (!supabase) throw new Error('Supabase not configured');
-    
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    try {
+      const token = localStorage.getItem('magflow_token');
+      if (token) {
+        await api.post('/api/auth/logout', {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      localStorage.removeItem('magflow_token');
+      localStorage.removeItem('magflow_user');
+      setUser(null);
+      setSession(null);
+    }
   };
 
   const resetPassword = async (email) => {
-    if (!supabase) throw new Error('Supabase not configured');
-    
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
-    });
-    
-    if (error) throw error;
+    const response = await api.post('/api/auth/password-reset', { email });
+    if (!response.success) {
+      throw new Error(response.error || 'Password reset failed');
+    }
   };
 
   const updatePassword = async (newPassword) => {
-    if (!supabase) throw new Error('Supabase not configured');
-    
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword
-    });
-    
-    if (error) throw error;
+    const token = localStorage.getItem('magflow_token');
+    const response = await api.post('/api/auth/password-update', 
+      { newPassword },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!response.success) {
+      throw new Error(response.error || 'Password update failed');
+    }
   };
 
   const value = {

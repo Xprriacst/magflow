@@ -3,10 +3,15 @@ import multer from 'multer';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { supabase, isSupabaseConfigured } from '../services/supabaseClient.js';
+import { supabase, supabaseAdmin, isSupabaseConfigured } from '../services/supabaseClient.js';
 import { processNewTemplate, updateTemplateFromAnalysis } from '../services/templateWorkflow.js';
+import { verifyToken, requireRole, logUserAction } from '../middleware/auth.js';
+import { defaultLimiter, uploadLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
+
+// Apply default rate limiting to all routes
+router.use(defaultLimiter);
 
 // Configuration multer pour upload temporaire
 const upload = multer({
@@ -34,10 +39,12 @@ function getFileChecksum(filePath) {
 /**
  * POST /api/templates/upload
  * Upload un template vers Supabase Storage et met à jour la BDD
+ * Protected route - requires authentication
  */
-router.post('/upload', upload.single('template'), async (req, res, next) => {
+router.post('/upload', verifyToken, uploadLimiter, upload.single('template'), async (req, res, next) => {
   const tempFilePath = req.file?.path;
-  
+  const userId = req.user.id;
+
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -46,7 +53,7 @@ router.post('/upload', upload.single('template'), async (req, res, next) => {
       });
     }
 
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !supabaseAdmin) {
       return res.status(503).json({
         success: false,
         error: 'Supabase not configured'
@@ -58,8 +65,8 @@ router.post('/upload', upload.single('template'), async (req, res, next) => {
     const fileBuffer = fs.readFileSync(tempFilePath);
     const checksum = getFileChecksum(tempFilePath);
 
-    // Chemin dans le bucket Storage
-    const storagePath = `templates/${originalName}`;
+    // Chemin dans le bucket Storage - include user ID for isolation
+    const storagePath = `templates/${userId}/${originalName}`;
 
     console.log(`[TemplateUpload] Uploading ${originalName} to Supabase Storage...`);
 
@@ -86,13 +93,28 @@ router.post('/upload', upload.single('template'), async (req, res, next) => {
 
     // Si templateId fourni, mettre à jour le template existant
     if (templateId) {
-      const { data: template, error: updateError } = await supabase
+      // Verify user owns this template (unless admin)
+      if (req.userProfile?.role !== 'admin') {
+        const { data: existingTemplate } = await supabaseAdmin
+          .from('indesign_templates')
+          .select('user_id')
+          .eq('id', templateId)
+          .single();
+
+        if (existingTemplate && existingTemplate.user_id !== userId) {
+          return res.status(403).json({
+            success: false,
+            error: 'Not authorized to update this template'
+          });
+        }
+      }
+
+      const { data: template, error: updateError } = await supabaseAdmin
         .from('indesign_templates')
         .update({
           storage_url: storageUrl,
           file_checksum: checksum,
           updated_at: new Date().toISOString()
-          // version sera incrémenté automatiquement par le trigger
         })
         .eq('id', templateId)
         .select()
@@ -102,6 +124,12 @@ router.post('/upload', upload.single('template'), async (req, res, next) => {
         throw new Error(`Database update failed: ${updateError.message}`);
       }
 
+      // Log the action
+      await logUserAction(userId, 'template_upload', {
+        template_id: templateId,
+        filename: originalName
+      }, req);
+
       res.json({
         success: true,
         message: 'Template uploaded and updated',
@@ -109,6 +137,12 @@ router.post('/upload', upload.single('template'), async (req, res, next) => {
         storage_url: storageUrl
       });
     } else {
+      // Log the action
+      await logUserAction(userId, 'template_upload', {
+        filename: originalName,
+        new_template: true
+      }, req);
+
       // Nouveau template - retourner juste l'URL pour création manuelle
       res.json({
         success: true,
@@ -135,9 +169,9 @@ router.post('/upload', upload.single('template'), async (req, res, next) => {
 
 /**
  * POST /api/templates/upload-local
- * Upload un template depuis un chemin local sur le serveur (admin/dev)
+ * Upload un template depuis un chemin local sur le serveur (admin only)
  */
-router.post('/upload-local', async (req, res, next) => {
+router.post('/upload-local', verifyToken, requireRole('admin'), async (req, res, next) => {
   try {
     const { localPath, templateId } = req.body;
 
@@ -221,9 +255,9 @@ router.post('/upload-local', async (req, res, next) => {
 
 /**
  * POST /api/templates/upload-all
- * Upload tous les templates locaux vers Supabase Storage
+ * Upload tous les templates locaux vers Supabase Storage (admin only)
  */
-router.post('/upload-all', async (req, res, next) => {
+router.post('/upload-all', verifyToken, requireRole('admin'), async (req, res, next) => {
   try {
     if (!isSupabaseConfigured) {
       return res.status(503).json({
@@ -320,9 +354,9 @@ router.post('/upload-all', async (req, res, next) => {
 /**
  * POST /api/templates/upload-and-process
  * Workflow complet: Upload → Analyse InDesign → Miniature → Enrichissement IA → Création BDD
- * Retourne immédiatement un job ID et traite en arrière-plan
+ * Protected route - requires authentication
  */
-router.post('/upload-and-process', upload.single('template'), async (req, res, next) => {
+router.post('/upload-and-process', verifyToken, uploadLimiter, upload.single('template'), async (req, res, next) => {
   const tempFilePath = req.file?.path;
 
   try {
@@ -389,8 +423,9 @@ router.post('/upload-and-process', upload.single('template'), async (req, res, n
 /**
  * POST /api/templates/:id/reanalyze
  * Re-analyse un template existant et met à jour ses métadonnées + miniature
+ * Protected route - requires authentication
  */
-router.post('/:id/reanalyze', async (req, res, next) => {
+router.post('/:id/reanalyze', verifyToken, async (req, res, next) => {
   try {
     const { id } = req.params;
 

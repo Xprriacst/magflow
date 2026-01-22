@@ -317,6 +317,62 @@ export const magazineAPI = {
 };
 
 /**
+ * Authentication
+ */
+export const authAPI = {
+  /**
+   * Enregistre un nouvel utilisateur
+   */
+  async register(email, password, fullName, companyName) {
+    return await apiCall('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, fullName, companyName }),
+    });
+  },
+
+  /**
+   * Connecte un utilisateur
+   */
+  async login(email, password) {
+    return await apiCall('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  },
+
+  /**
+   * Déconnecte l'utilisateur
+   */
+  async logout(token) {
+    return await apiCall('/api/auth/logout', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  },
+
+  /**
+   * Réinitialise le mot de passe
+   */
+  async resetPassword(email) {
+    return await apiCall('/api/auth/password-reset', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  /**
+   * Met à jour le mot de passe
+   */
+  async updatePassword(newPassword, token) {
+    return await apiCall('/api/auth/password-update', {
+      method: 'POST',
+      body: JSON.stringify({ newPassword }),
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  },
+};
+
+/**
  * Health Check
  */
 export const healthAPI = {
@@ -329,11 +385,24 @@ export const healthAPI = {
 };
 
 /**
+ * Méthode générique pour POST
+ */
+export async function post(endpoint, data = {}, options = {}) {
+  return await apiCall(endpoint, {
+    method: 'POST',
+    body: JSON.stringify(data),
+    ...options,
+  });
+}
+
+/**
  * Export par défaut avec toutes les API
  */
 export default {
   content: contentAPI,
   templates: templatesAPI,
   magazine: magazineAPI,
+  auth: authAPI,
   health: healthAPI,
+  post,
 };

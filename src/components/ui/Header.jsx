@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import Icon from '../AppIcon';
 import Button from './Button';
 
@@ -16,6 +17,7 @@ const Header = () => {
   const mobileMenuRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
 
   const navigationItems = [
     { 
@@ -45,8 +47,9 @@ const Header = () => {
   ];
 
   const currentUser = {
-    name: 'Marie Dubois',
-    role: 'Éditrice en chef',
+    name: user?.name || user?.email?.split('@')[0] || 'Utilisateur',
+    role: user?.role === 'admin' ? 'Administrateur' : 'Utilisateur',
+    isAdmin: user?.role === 'admin',
     avatar: '/assets/images/no_image.png'
   };
 
@@ -69,9 +72,14 @@ const Header = () => {
     setIsMobileMenuOpen(false);
   };
 
-  const handleLogout = () => {
-    navigate('/login');
-    setIsUserMenuOpen(false);
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+      setIsUserMenuOpen(false);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const isActivePath = (path) => {
@@ -160,7 +168,14 @@ const Header = () => {
                 <Icon name="User" size={16} color="var(--color-muted-foreground)" />
               </div>
               <div className="hidden lg:block text-left">
-                <div className="text-sm font-medium text-foreground">{currentUser?.name}</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-medium text-foreground">{currentUser?.name}</div>
+                  {currentUser?.isAdmin && (
+                    <span className="px-2 py-0.5 text-xs font-semibold bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-full shadow-sm">
+                      ADMIN
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-muted-foreground">{currentUser?.role}</div>
               </div>
               <Icon 
@@ -174,7 +189,14 @@ const Header = () => {
             {isUserMenuOpen && (
               <div className="absolute right-0 top-full mt-2 w-56 bg-popover border border-border rounded-lg shadow-modal animate-fade-in">
                 <div className="p-3 border-b border-border">
-                  <div className="font-medium text-popover-foreground">{currentUser?.name}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium text-popover-foreground">{currentUser?.name}</div>
+                    {currentUser?.isAdmin && (
+                      <span className="px-2 py-0.5 text-xs font-semibold bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-full shadow-sm">
+                        ADMIN
+                      </span>
+                    )}
+                  </div>
                   <div className="text-sm text-muted-foreground">{currentUser?.role}</div>
                 </div>
                 <div className="py-1">
