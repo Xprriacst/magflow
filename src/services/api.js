@@ -6,21 +6,41 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 /**
- * Wrapper fetch avec gestion d'erreurs
+ * Récupère le token d'authentification depuis localStorage
  */
-async function apiCall(endpoint, options = {}) {
+function getAuthToken() {
+  return localStorage.getItem('magflow_token');
+}
+
+/**
+ * Wrapper fetch avec gestion d'erreurs et token automatique
+ */
+async function apiCall(endpoint, options = {}, requiresAuth = false) {
   try {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    // Ajouter le token si authentification requise ou si token présent
+    const token = getAuthToken();
+    if (token && (requiresAuth || !options.skipAuth)) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
     });
 
     const data = await response.json();
 
     if (!response.ok) {
+      // Si 401, le token est invalide - nettoyer localStorage
+      if (response.status === 401) {
+        localStorage.removeItem('magflow_token');
+        localStorage.removeItem('magflow_user');
+      }
       throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
     }
 
@@ -247,6 +267,7 @@ export const templatesAPI = {
 export const magazineAPI = {
   /**
    * Génère un magazine complet
+   * REQUIERT AUTHENTIFICATION - vérifie les crédits utilisateur
    * @param {Object} params - Paramètres de génération
    * @param {string} params.content - Contenu original
    * @param {Object} params.contentStructure - Structure analysée
@@ -264,17 +285,18 @@ export const magazineAPI = {
       chapo: contentStructure?.chapo || '', // ✅ Vraies données
       images,
     };
-    
+
     console.log('[API] Génération magazine:', {
       template_id: payload.template_id,
       titre: payload.titre?.substring(0, 50),
       chapo: payload.chapo?.substring(0, 50)
     });
-    
+
+    // ✅ Appel authentifié (requiresAuth = true)
     const data = await apiCall('/api/magazine/generate', {
       method: 'POST',
       body: JSON.stringify(payload),
-    });
+    }, true);
     return {
       generationId: data.generationId,
       projectId: data.projectId,
@@ -284,11 +306,12 @@ export const magazineAPI = {
 
   /**
    * Récupère le statut d'une génération
+   * REQUIERT AUTHENTIFICATION
    * @param {string} generationId - ID de la génération
    * @returns {Promise<Object>} Statut
    */
   async getStatus(generationId) {
-    const data = await apiCall(`/api/magazine/status/${generationId}`);
+    const data = await apiCall(`/api/magazine/status/${generationId}`, {}, true);
     return {
       status: data.status,
       projectId: data.projectId,
@@ -301,12 +324,13 @@ export const magazineAPI = {
 
   /**
    * Récupère l'historique des générations
+   * REQUIERT AUTHENTIFICATION
    * @param {number} limit - Nombre de résultats
    * @param {number} offset - Offset pour pagination
    * @returns {Promise<Object>} Historique
    */
   async getHistory(limit = 20, offset = 0) {
-    const data = await apiCall(`/api/magazine/history?limit=${limit}&offset=${offset}`);
+    const data = await apiCall(`/api/magazine/history?limit=${limit}&offset=${offset}`, {}, true);
     return {
       generations: data.generations,
       total: data.total,
@@ -343,11 +367,29 @@ export const authAPI = {
   /**
    * Déconnecte l'utilisateur
    */
-  async logout(token) {
+  async logout() {
     return await apiCall('/api/auth/logout', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    }, true);
+  },
+
+  /**
+   * Récupère le profil de l'utilisateur connecté (avec crédits)
+   * REQUIERT AUTHENTIFICATION
+   */
+  async getProfile() {
+    return await apiCall('/api/auth/me', {}, true);
+  },
+
+  /**
+   * Met à jour le profil utilisateur
+   * REQUIERT AUTHENTIFICATION
+   */
+  async updateProfile(data) {
+    return await apiCall('/api/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }, true);
   },
 
   /**
@@ -362,13 +404,13 @@ export const authAPI = {
 
   /**
    * Met à jour le mot de passe
+   * REQUIERT AUTHENTIFICATION
    */
-  async updatePassword(newPassword, token) {
+  async updatePassword(newPassword) {
     return await apiCall('/api/auth/password-update', {
       method: 'POST',
       body: JSON.stringify({ newPassword }),
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    }, true);
   },
 };
 
@@ -381,6 +423,39 @@ export const healthAPI = {
    */
   async check() {
     return await apiCall('/health');
+  },
+};
+
+/**
+ * Stripe / Payments
+ */
+export const stripeAPI = {
+  /**
+   * Récupère les packages de crédits disponibles
+   */
+  async getPackages() {
+    return await apiCall('/api/stripe/packages');
+  },
+
+  /**
+   * Crée une session de checkout Stripe
+   * REQUIERT AUTHENTIFICATION
+   * @param {string} packageId - ID du package de crédits
+   */
+  async createCheckoutSession(packageId) {
+    return await apiCall('/api/stripe/create-checkout-session', {
+      method: 'POST',
+      body: JSON.stringify({ packageId }),
+    }, true);
+  },
+
+  /**
+   * Vérifie le statut d'une session de paiement
+   * REQUIERT AUTHENTIFICATION
+   * @param {string} sessionId - ID de la session Stripe
+   */
+  async verifySession(sessionId) {
+    return await apiCall(`/api/stripe/verify-session/${sessionId}`, {}, true);
   },
 };
 
@@ -404,5 +479,6 @@ export default {
   magazine: magazineAPI,
   auth: authAPI,
   health: healthAPI,
+  stripe: stripeAPI,
   post,
 };

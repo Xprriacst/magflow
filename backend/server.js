@@ -11,6 +11,7 @@ import templateUploadRoutes from './routes/templateUpload.js';
 import magazineRoutes from './routes/magazine.js';
 import uploadRoutes from './routes/upload.js';
 import authRoutes from './routes/auth.js';
+import stripeRoutes from './routes/stripe.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -131,6 +132,9 @@ app.use(cors({
   credentials: true
 }));
 
+// Stripe webhook needs raw body - must be before express.json()
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -153,6 +157,7 @@ app.use('/api/templates', templateUploadRoutes); // Upload routes under /api/tem
 app.use('/api/magazine', magazineRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/stripe', stripeRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

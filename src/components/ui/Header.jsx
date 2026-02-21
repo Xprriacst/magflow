@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Icon from '../AppIcon';
 import Button from './Button';
+import { CreditsDisplayCompact } from '../CreditsDisplay';
 
 const Header = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -139,6 +140,9 @@ const Header = () => {
 
         {/* Right Section */}
         <div className="flex items-center space-x-3 flex-shrink-0">
+          {/* Credits Display */}
+          <CreditsDisplayCompact className="hidden sm:flex" />
+
           {/* Notifications */}
           <div className="relative">
             <Button

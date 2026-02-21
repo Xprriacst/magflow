@@ -220,9 +220,13 @@ describe('Auth Middleware Unit Tests', () => {
       expect(res.status).toHaveBeenCalledWith(429);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         success: false,
-        error: 'Monthly generation limit exceeded',
-        limit: 5,
-        used: 5,
+        error: 'Crédits épuisés',
+        errorCode: 'NO_CREDITS',
+        credits: {
+          used: 5,
+          limit: 5,
+          remaining: 0
+        },
         subscription_tier: 'free'
       }));
       expect(next).not.toHaveBeenCalled();

@@ -11,7 +11,7 @@ const router = express.Router();
 router.use(defaultLimiter);
 
 const PLACEHOLDER_IMAGE = process.env.MAGFLOW_PLACEHOLDER_IMAGE_URL ||
-  'https://images.unsplash.com/photo-1526481280695-3c469f99d62a?auto=format&fit=crop&w=1200&q=80';
+  'https://placehold.co/1200x800/png';
 
 /**
  * POST /api/magazine/generate
@@ -59,6 +59,17 @@ router.post('/generate', verifyToken, checkUsageLimit, generationLimiter, async 
     const generationId = uuidv4();
     let dbError = null;
 
+    // Helper to check if string is valid UUID
+    const isValidUUID = (str) => {
+      if (!str) return false;
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      return uuidRegex.test(str);
+    };
+
+    // Only use template_id if it's a valid UUID (fallback templates have non-UUID IDs)
+    const resolvedTemplateId = templateData?.id || template_id;
+    const dbTemplateId = isValidUUID(resolvedTemplateId) ? resolvedTemplateId : null;
+
     if (isSupabaseConfigured && supabaseAdmin) {
       // Use admin client to bypass RLS for server-side operations
       const { error } = await supabaseAdmin
@@ -67,7 +78,7 @@ router.post('/generate', verifyToken, checkUsageLimit, generationLimiter, async 
           id: generationId,
           user_id: userId, // Track which user created this generation
           content_structure: contentStructure,
-          template_id: templateData?.id || template_id,
+          template_id: dbTemplateId, // null if not a valid UUID
           image_urls: resolvedImages,
           status: 'processing',
           created_at: new Date().toISOString()

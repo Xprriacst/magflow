@@ -262,7 +262,10 @@ describe('Authentication Routes', () => {
       expect(response.body.user).toBeDefined();
       expect(response.body.profile).toBeDefined();
       expect(response.body.profile.subscriptionTier).toBe('free');
-      expect(response.body.profile.monthlyLimit).toBe(5);
+      // Credits info is now returned separately
+      expect(response.body.credits).toBeDefined();
+      expect(response.body.credits.limit).toBe(5);
+      expect(response.body.credits.remaining).toBeDefined();
     });
 
     it('should reject request without token', async () => {

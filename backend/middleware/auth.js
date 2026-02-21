@@ -96,7 +96,7 @@ export function requireRole(...roles) {
 }
 
 /**
- * Middleware: Check if user has remaining generations
+ * Middleware: Check if user has remaining credits (1 crédit = 1 page)
  * Must be used after verifyToken middleware
  */
 export function checkUsageLimit(req, res, next) {
@@ -118,9 +118,13 @@ export function checkUsageLimit(req, res, next) {
   if (monthly_generations_used >= monthly_limit) {
     return res.status(429).json({
       success: false,
-      error: 'Monthly generation limit exceeded',
-      limit: monthly_limit,
-      used: monthly_generations_used,
+      error: 'Crédits épuisés',
+      errorCode: 'NO_CREDITS',
+      credits: {
+        used: monthly_generations_used,
+        limit: monthly_limit,
+        remaining: 0
+      },
       subscription_tier,
       upgradeUrl: '/pricing'
     });
