@@ -42,9 +42,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   stripe_customer_id TEXT UNIQUE, -- Stripe customer ID
   stripe_subscription_id TEXT,    -- Stripe subscription ID (null for free users)
 
-  -- Usage Tracking
-  monthly_generations_used INTEGER NOT NULL DEFAULT 0,
-  monthly_limit INTEGER NOT NULL DEFAULT 5, -- 5 for free, -1 for unlimited (pro)
+  -- Usage Tracking (Credits: 1 crédit = 1 page générée)
+  monthly_generations_used INTEGER NOT NULL DEFAULT 0, -- Rebaptisé "credits_used" conceptuellement
+  monthly_limit INTEGER NOT NULL DEFAULT 3, -- 3 crédits gratuits pour free, -1 pour illimité (pro)
   usage_reset_date DATE NOT NULL DEFAULT DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month'),
 
   -- Authorization
@@ -64,8 +64,8 @@ CREATE INDEX idx_profiles_subscription_tier ON public.profiles(subscription_tier
 
 -- Comments
 COMMENT ON TABLE public.profiles IS 'User profiles extending Supabase auth.users';
-COMMENT ON COLUMN public.profiles.monthly_limit IS '5 for free users, -1 for unlimited (pro users)';
-COMMENT ON COLUMN public.profiles.usage_reset_date IS 'Date when monthly_generations_used resets to 0';
+COMMENT ON COLUMN public.profiles.monthly_limit IS '3 crédits gratuits pour free users, -1 pour illimité (pro users). 1 crédit = 1 page générée';
+COMMENT ON COLUMN public.profiles.usage_reset_date IS 'Date when monthly_generations_used (credits) resets to 0';
 
 -- ============================================================================
 -- TABLE: subscriptions
@@ -483,6 +483,22 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 COMMENT ON FUNCTION public.reset_monthly_usage IS 'Resets monthly usage counters. Call via cron on 1st of each month.';
+
+-- ----------------------------------------------------------------------------
+-- Function: Increment generation count (called from backend)
+-- ----------------------------------------------------------------------------
+-- Atomically increments the monthly_generations_used counter for a user
+
+CREATE OR REPLACE FUNCTION public.increment_generation_count(user_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE public.profiles
+  SET monthly_generations_used = monthly_generations_used + 1
+  WHERE id = user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+COMMENT ON FUNCTION public.increment_generation_count IS 'Atomically increments user generation count. Called after successful generation.';
 
 -- ============================================================================
 -- INITIAL DATA / SEED

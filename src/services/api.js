@@ -438,6 +438,13 @@ export const stripeAPI = {
   },
 
   /**
+   * Récupère les plans d'abonnement récurrents disponibles
+   */
+  async getPlans() {
+    return await apiCall('/api/stripe/plans');
+  },
+
+  /**
    * Crée une session de checkout Stripe
    * REQUIERT AUTHENTIFICATION
    * @param {string} packageId - ID du package de crédits
@@ -447,6 +454,44 @@ export const stripeAPI = {
       method: 'POST',
       body: JSON.stringify({ packageId }),
     }, true);
+  },
+
+  /**
+   * Crée une session de checkout Stripe pour abonnement récurrent
+   * REQUIERT AUTHENTIFICATION
+   */
+  async createSubscriptionSession(planId, returnPath = '/account') {
+    return await apiCall('/api/stripe/create-subscription-session', {
+      method: 'POST',
+      body: JSON.stringify({ planId, returnPath }),
+    }, true);
+  },
+
+  /**
+   * Crée une session du portail client Stripe
+   * REQUIERT AUTHENTIFICATION
+   */
+  async createBillingPortalSession(returnPath = '/account') {
+    return await apiCall('/api/stripe/create-billing-portal-session', {
+      method: 'POST',
+      body: JSON.stringify({ returnPath }),
+    }, true);
+  },
+
+  /**
+   * Récupère l'abonnement actuel de l'utilisateur
+   * REQUIERT AUTHENTIFICATION
+   */
+  async getSubscription() {
+    return await apiCall('/api/stripe/subscription', {}, true);
+  },
+
+  /**
+   * Récupère l'historique des factures Stripe
+   * REQUIERT AUTHENTIFICATION
+   */
+  async getInvoices(limit = 20) {
+    return await apiCall(`/api/stripe/invoices?limit=${limit}`, {}, true);
   },
 
   /**

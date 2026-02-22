@@ -22,6 +22,10 @@ import GenerationResult from './pages/generation-result';
 import TemplatesAdmin from './pages/admin/templates';
 import PricingPage from './pages/pricing';
 import PaymentSuccessPage from './pages/payment/success';
+import AccountPage from './pages/account';
+import TermsPage from './pages/legal/terms';
+import PrivacyPage from './pages/legal/privacy';
+import GdprPage from './pages/legal/gdpr';
 
 const Routes = () => {
   return (
@@ -74,10 +78,16 @@ const Routes = () => {
 
         {/* Pricing - accessible sans auth pour voir les offres */}
         <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/legal/cgv" element={<TermsPage />} />
+        <Route path="/legal/privacy" element={<PrivacyPage />} />
+        <Route path="/legal/rgpd" element={<GdprPage />} />
 
         {/* Payment success - protégé */}
         <Route path="/payment/success" element={
           <ProtectedRoute><PaymentSuccessPage /></ProtectedRoute>
+        } />
+        <Route path="/account" element={
+          <ProtectedRoute><AccountPage /></ProtectedRoute>
         } />
 
         <Route path="*" element={<NotFound />} />

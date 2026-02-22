@@ -107,9 +107,23 @@ const devAllowedOrigins = [
   'http://localhost:4028'
 ];
 
+function normalizeOrigin(origin) {
+  if (!origin) return '';
+  return origin.endsWith('/') ? origin.slice(0, -1) : origin;
+}
+
+const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((origin) => normalizeOrigin(origin.trim()))
+  .filter(Boolean);
+
+const configuredOrigins = [process.env.FRONTEND_URL, ...envAllowedOrigins]
+  .map((origin) => normalizeOrigin(origin))
+  .filter(Boolean);
+
 const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? [process.env.FRONTEND_URL].filter(Boolean)
-  : devAllowedOrigins;
+  ? Array.from(new Set(configuredOrigins))
+  : Array.from(new Set([...devAllowedOrigins, ...configuredOrigins]));
 
 app.use(cors({
   origin(origin, callback) {
@@ -117,8 +131,10 @@ app.use(cors({
       return callback(null, true);
     }
 
+    const normalizedOrigin = normalizeOrigin(origin);
+
     const isAllowed =
-      allowedOrigins.includes(origin) ||
+      allowedOrigins.includes(normalizedOrigin) ||
       /^https?:\/\/127\.0\.0\.1(?::\d+)?$/.test(origin) ||
       /^https?:\/\/localhost(?::\d+)?$/.test(origin);
 

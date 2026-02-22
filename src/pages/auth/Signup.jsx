@@ -176,9 +176,9 @@ const Signup = () => {
               />
               <span className="ml-2 text-sm text-gray-600">
                 J'accepte les{' '}
-                <a href="#" className="text-purple-600 hover:underline">conditions d'utilisation</a>
+                <Link to="/legal/cgv" className="text-purple-600 hover:underline">conditions d'utilisation</Link>
                 {' '}et la{' '}
-                <a href="#" className="text-purple-600 hover:underline">politique de confidentialité</a>
+                <Link to="/legal/privacy" className="text-purple-600 hover:underline">politique de confidentialité</Link>
               </span>
             </div>
 

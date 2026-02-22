@@ -44,6 +44,12 @@ const Header = () => {
       path: '/processing-status', 
       icon: 'Settings',
       tooltip: 'Suivi du traitement et statut'
+    },
+    {
+      name: 'Mon compte',
+      path: '/account',
+      icon: 'UserCog',
+      tooltip: 'Profil, abonnement et factures'
     }
   ];
 
@@ -92,6 +98,9 @@ const Header = () => {
     }
     if (path === '/template-gallery') {
       return location?.pathname?.includes('/template-gallery') || location?.pathname?.includes('/template-preview');
+    }
+    if (path === '/account') {
+      return location?.pathname === '/account';
     }
     return location?.pathname === path;
   };
@@ -204,17 +213,35 @@ const Header = () => {
                   <div className="text-sm text-muted-foreground">{currentUser?.role}</div>
                 </div>
                 <div className="py-1">
-                  <button className="w-full px-3 py-2 text-left text-sm text-popover-foreground hover:bg-muted transition-colors duration-150 flex items-center">
+                  <button
+                    onClick={() => {
+                      navigate('/account');
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-popover-foreground hover:bg-muted transition-colors duration-150 flex items-center"
+                  >
                     <Icon name="User" size={16} className="mr-2" />
-                    Profil
+                    Mon compte
                   </button>
-                  <button className="w-full px-3 py-2 text-left text-sm text-popover-foreground hover:bg-muted transition-colors duration-150 flex items-center">
+                  <button
+                    onClick={() => {
+                      navigate('/pricing');
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-popover-foreground hover:bg-muted transition-colors duration-150 flex items-center"
+                  >
                     <Icon name="Settings" size={16} className="mr-2" />
-                    Paramètres
+                    Tarifs & facturation
                   </button>
-                  <button className="w-full px-3 py-2 text-left text-sm text-popover-foreground hover:bg-muted transition-colors duration-150 flex items-center">
+                  <button
+                    onClick={() => {
+                      navigate('/legal/cgv');
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-popover-foreground hover:bg-muted transition-colors duration-150 flex items-center"
+                  >
                     <Icon name="HelpCircle" size={16} className="mr-2" />
-                    Aide
+                    Aide & CGV
                   </button>
                   <div className="border-t border-border my-1"></div>
                   <button 

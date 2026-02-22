@@ -148,6 +148,11 @@ router.post('/login', authLimiter, async (req, res) => {
       profile = profileData;
     }
 
+    // Calculate credits
+    const creditsUsed = profile?.monthly_generations_used || 0;
+    const creditsLimit = profile?.monthly_limit || 3;
+    const creditsRemaining = creditsLimit === -1 ? -1 : Math.max(0, creditsLimit - creditsUsed);
+
     res.json({
       success: true,
       token: data.session.access_token,
@@ -158,9 +163,13 @@ router.post('/login', authLimiter, async (req, res) => {
         email: data.user.email,
         name: data.user.user_metadata?.full_name || email.split('@')[0],
         role: profile?.role || 'user',
-        subscriptionTier: profile?.subscription_tier || 'free',
-        monthlyGenerationsUsed: profile?.monthly_generations_used || 0,
-        monthlyLimit: profile?.monthly_limit || 5
+        subscriptionTier: profile?.subscription_tier || 'free'
+      },
+      credits: {
+        used: creditsUsed,
+        limit: creditsLimit,
+        remaining: creditsRemaining,
+        unlimited: creditsLimit === -1
       }
     });
 
@@ -258,12 +267,19 @@ router.post('/refresh-token', async (req, res) => {
 
 /**
  * GET /api/auth/me
- * Get current authenticated user profile
+ * Get current authenticated user profile with credits info
  */
 router.get('/me', verifyToken, async (req, res) => {
   try {
     const user = req.user;
     const profile = req.userProfile;
+
+    // Calculate remaining credits (monthly + purchased)
+    const creditsUsed = profile?.monthly_generations_used || 0;
+    const creditsLimit = profile?.monthly_limit || 3;
+    const creditsPurchased = profile?.credits_purchased || 0;
+    const monthlyRemaining = creditsLimit === -1 ? -1 : Math.max(0, creditsLimit - creditsUsed);
+    const totalRemaining = creditsLimit === -1 ? -1 : monthlyRemaining + creditsPurchased;
 
     res.json({
       success: true,
@@ -279,10 +295,17 @@ router.get('/me', verifyToken, async (req, res) => {
         companyName: profile.company_name,
         subscriptionTier: profile.subscription_tier,
         subscriptionStatus: profile.subscription_status,
-        monthlyGenerationsUsed: profile.monthly_generations_used,
-        monthlyLimit: profile.monthly_limit,
         usageResetDate: profile.usage_reset_date
-      } : null
+      } : null,
+      // Credits info (1 crédit = 1 page générée)
+      credits: {
+        used: creditsUsed,
+        limit: creditsLimit,
+        purchased: creditsPurchased,
+        monthlyRemaining,
+        remaining: totalRemaining, // Total: monthly + purchased
+        unlimited: creditsLimit === -1
+      }
     });
 
   } catch (error) {
