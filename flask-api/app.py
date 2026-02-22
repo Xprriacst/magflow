@@ -126,7 +126,7 @@ def create_layout():
         prompt = request.form.get('prompt', '')
         text_content = request.form.get('text_content', '')
         subtitle = request.form.get('subtitle', '')
-        template_name = request.form.get('template', 'default')
+        template_name = request.form.get('template', 'template-mag-simple-1808.indt')
         rectangle_index = request.form.get('rectangle_index', '0')
         
         if not prompt:
@@ -203,7 +203,7 @@ def create_layout_urls():
         prompt = request.form.get('prompt') or (request.get_json(silent=True) or {}).get('prompt', '')
         text_content = request.form.get('text_content') or (request.get_json(silent=True) or {}).get('text_content', '')
         subtitle = request.form.get('subtitle') or (request.get_json(silent=True) or {}).get('subtitle', '')
-        template_name = request.form.get('template') or (request.get_json(silent=True) or {}).get('template', 'default')
+        template_name = request.form.get('template') or (request.get_json(silent=True) or {}).get('template', 'template-mag-simple-1808.indt')
         image_urls = _parse_image_urls_from_request(request)
 
         if not prompt:
@@ -392,30 +392,19 @@ def execute_indesign_script(project_id, config_path):
     try:
         script_path = os.path.join(os.getcwd(), 'scripts', 'template_simple_working.jsx')
         indesign_app = os.getenv('INDESIGN_APP_NAME', 'Adobe InDesign 2026')
-        # Commande pour exécuter le script InDesign
-        # Sur macOS, utiliser osascript avec un fichier temporaire
-        import tempfile
-        
-        # Créer un script AppleScript temporaire avec scriptArgs pour passer le configPath
-        applescript_content = f'''
-tell application "{indesign_app}"
-    activate
-    set script args of script preferences to {{{{class:script arg, name:"configPath", value:"{config_path}"}}}}
-    do script POSIX file "{script_path}" language javascript
-end tell
-'''
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.applescript', delete=False) as temp_file:
-            temp_file.write(applescript_content)
-            temp_script_path = temp_file.name
-        
-        try:
-            cmd = ['osascript', temp_script_path]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-        finally:
-            # Nettoyer le fichier temporaire
-            os.unlink(temp_script_path)
-        
+
+        # Écrire le chemin du config dans un fichier temporaire que le script JSX lira
+        # Cette approche évite les problèmes de scriptArgs avec InDesign 2026
+        config_pointer_path = os.path.join(os.getcwd(), 'current_config_path.txt')
+        with open(config_pointer_path, 'w', encoding='utf-8') as f:
+            f.write(os.path.abspath(config_path))
+
+        # Utiliser osascript -e directement (plus fiable, même approche que execute_analysis_script)
+        applescript_cmd = f'tell application "{indesign_app}" to do script POSIX file "{script_path}" language javascript'
+
+        cmd = ['osascript', '-e', applescript_cmd]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+
         if result.returncode == 0:
             output_file = os.path.join(app.config['OUTPUT_FOLDER'], f'{project_id}.indd')
             return {
@@ -428,7 +417,7 @@ end tell
                 'success': False,
                 'error': f'Erreur script InDesign: {result.stderr}'
             }
-            
+
     except subprocess.TimeoutExpired:
         return {
             'success': False,

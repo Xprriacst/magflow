@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Destination après login (par défaut: /)
+  const from = location.state?.from?.pathname || '/';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -17,7 +21,8 @@ const Login = () => {
 
     try {
       await signIn(email, password);
-      navigate('/');
+      // Rediriger vers la page demandée ou la home
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err.message || 'Erreur de connexion');
     } finally {
@@ -117,7 +122,7 @@ const Login = () => {
         {/* Footer */}
         <p className="mt-6 text-center text-purple-200 text-sm">
           En vous connectant, vous acceptez nos{' '}
-          <a href="#" className="underline">conditions d'utilisation</a>
+          <Link to="/legal/cgv" className="underline">conditions d'utilisation</Link>
         </p>
       </div>
     </div>

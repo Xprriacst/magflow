@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import Icon from '../AppIcon';
 import Button from './Button';
+import { CreditsDisplayCompact } from '../CreditsDisplay';
 
 const Header = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -16,6 +18,7 @@ const Header = () => {
   const mobileMenuRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
 
   const navigationItems = [
     { 
@@ -41,12 +44,19 @@ const Header = () => {
       path: '/processing-status', 
       icon: 'Settings',
       tooltip: 'Suivi du traitement et statut'
+    },
+    {
+      name: 'Mon compte',
+      path: '/account',
+      icon: 'UserCog',
+      tooltip: 'Profil, abonnement et factures'
     }
   ];
 
   const currentUser = {
-    name: 'Marie Dubois',
-    role: 'Éditrice en chef',
+    name: user?.name || user?.email?.split('@')[0] || 'Utilisateur',
+    role: user?.role === 'admin' ? 'Administrateur' : 'Utilisateur',
+    isAdmin: user?.role === 'admin',
     avatar: '/assets/images/no_image.png'
   };
 
@@ -69,9 +79,14 @@ const Header = () => {
     setIsMobileMenuOpen(false);
   };
 
-  const handleLogout = () => {
-    navigate('/login');
-    setIsUserMenuOpen(false);
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+      setIsUserMenuOpen(false);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const isActivePath = (path) => {
@@ -83,6 +98,9 @@ const Header = () => {
     }
     if (path === '/template-gallery') {
       return location?.pathname?.includes('/template-gallery') || location?.pathname?.includes('/template-preview');
+    }
+    if (path === '/account') {
+      return location?.pathname === '/account';
     }
     return location?.pathname === path;
   };
@@ -131,6 +149,9 @@ const Header = () => {
 
         {/* Right Section */}
         <div className="flex items-center space-x-3 flex-shrink-0">
+          {/* Credits Display */}
+          <CreditsDisplayCompact className="hidden sm:flex" />
+
           {/* Notifications */}
           <div className="relative">
             <Button
@@ -160,7 +181,14 @@ const Header = () => {
                 <Icon name="User" size={16} color="var(--color-muted-foreground)" />
               </div>
               <div className="hidden lg:block text-left">
-                <div className="text-sm font-medium text-foreground">{currentUser?.name}</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-medium text-foreground">{currentUser?.name}</div>
+                  {currentUser?.isAdmin && (
+                    <span className="px-2 py-0.5 text-xs font-semibold bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-full shadow-sm">
+                      ADMIN
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-muted-foreground">{currentUser?.role}</div>
               </div>
               <Icon 
@@ -174,21 +202,46 @@ const Header = () => {
             {isUserMenuOpen && (
               <div className="absolute right-0 top-full mt-2 w-56 bg-popover border border-border rounded-lg shadow-modal animate-fade-in">
                 <div className="p-3 border-b border-border">
-                  <div className="font-medium text-popover-foreground">{currentUser?.name}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium text-popover-foreground">{currentUser?.name}</div>
+                    {currentUser?.isAdmin && (
+                      <span className="px-2 py-0.5 text-xs font-semibold bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-full shadow-sm">
+                        ADMIN
+                      </span>
+                    )}
+                  </div>
                   <div className="text-sm text-muted-foreground">{currentUser?.role}</div>
                 </div>
                 <div className="py-1">
-                  <button className="w-full px-3 py-2 text-left text-sm text-popover-foreground hover:bg-muted transition-colors duration-150 flex items-center">
+                  <button
+                    onClick={() => {
+                      navigate('/account');
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-popover-foreground hover:bg-muted transition-colors duration-150 flex items-center"
+                  >
                     <Icon name="User" size={16} className="mr-2" />
-                    Profil
+                    Mon compte
                   </button>
-                  <button className="w-full px-3 py-2 text-left text-sm text-popover-foreground hover:bg-muted transition-colors duration-150 flex items-center">
+                  <button
+                    onClick={() => {
+                      navigate('/pricing');
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-popover-foreground hover:bg-muted transition-colors duration-150 flex items-center"
+                  >
                     <Icon name="Settings" size={16} className="mr-2" />
-                    Paramètres
+                    Tarifs & facturation
                   </button>
-                  <button className="w-full px-3 py-2 text-left text-sm text-popover-foreground hover:bg-muted transition-colors duration-150 flex items-center">
+                  <button
+                    onClick={() => {
+                      navigate('/legal/cgv');
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-popover-foreground hover:bg-muted transition-colors duration-150 flex items-center"
+                  >
                     <Icon name="HelpCircle" size={16} className="mr-2" />
-                    Aide
+                    Aide & CGV
                   </button>
                   <div className="border-t border-border my-1"></div>
                   <button 

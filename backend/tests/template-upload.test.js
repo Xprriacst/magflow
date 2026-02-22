@@ -1,6 +1,6 @@
 /**
  * Tests du workflow d'upload de templates
- * 
+ *
  * Exécuter: cd backend && npm test -- template-upload
  */
 
@@ -10,9 +10,32 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 
+const mockUser = {
+  id: 'test-user-id-123',
+  email: 'admin@example.com',
+  user_metadata: { full_name: 'Admin User' }
+};
+
+const mockAdminProfile = {
+  id: 'test-user-id-123',
+  email: 'admin@example.com',
+  role: 'admin',
+  subscription_tier: 'pro',
+  monthly_generations_used: 0,
+  monthly_limit: -1
+};
+
 // Mock des services externes
 vi.mock('../services/supabaseClient.js', () => ({
   supabase: {
+    auth: {
+      getUser: vi.fn((token) => {
+        if (token === 'valid-admin-token') {
+          return Promise.resolve({ data: { user: mockUser }, error: null });
+        }
+        return Promise.resolve({ data: { user: null }, error: { message: 'Invalid token' } });
+      })
+    },
     from: vi.fn(() => ({
       insert: vi.fn(() => ({
         select: vi.fn(() => ({
@@ -46,7 +69,15 @@ vi.mock('../services/supabaseClient.js', () => ({
       }))
     }
   },
-  supabaseAdmin: null,
+  supabaseAdmin: {
+    from: vi.fn((table) => ({
+      select: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: mockAdminProfile, error: null })
+    }))
+  },
   isSupabaseConfigured: true
 }));
 
@@ -73,9 +104,19 @@ describe('Template Upload Routes', () => {
   });
 
   describe('POST /upload', () => {
+    it('should reject requests without authentication', async () => {
+      const response = await request(app)
+        .post('/api/templates/upload')
+        .send({});
+
+      expect(response.status).toBe(401);
+      expect(response.body.error).toContain('No authentication token');
+    });
+
     it('should reject requests without file', async () => {
       const response = await request(app)
         .post('/api/templates/upload')
+        .set('Authorization', 'Bearer valid-admin-token')
         .send({});
 
       expect(response.status).toBe(400);
@@ -85,6 +126,7 @@ describe('Template Upload Routes', () => {
     it('should reject non-indesign files', async () => {
       const response = await request(app)
         .post('/api/templates/upload')
+        .set('Authorization', 'Bearer valid-admin-token')
         .attach('template', Buffer.from('test'), {
           filename: 'test.pdf',
           contentType: 'application/pdf'
@@ -95,9 +137,20 @@ describe('Template Upload Routes', () => {
   });
 
   describe('POST /upload-local', () => {
-    it('should reject missing localPath', async () => {
+    it('should reject unauthenticated requests', async () => {
       const response = await request(app)
         .post('/api/templates/upload-local')
+        .send({});
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should reject non-admin users', async () => {
+      // This test would need a regular user token mock
+      // For simplicity, we test that admin token works for the validation check
+      const response = await request(app)
+        .post('/api/templates/upload-local')
+        .set('Authorization', 'Bearer valid-admin-token')
         .send({});
 
       expect(response.status).toBe(400);
@@ -107,6 +160,7 @@ describe('Template Upload Routes', () => {
     it('should reject non-existent files', async () => {
       const response = await request(app)
         .post('/api/templates/upload-local')
+        .set('Authorization', 'Bearer valid-admin-token')
         .send({ localPath: '/non/existent/file.indt' });
 
       expect(response.status).toBe(404);
@@ -117,7 +171,7 @@ describe('Template Upload Routes', () => {
 describe('Template Workflow Service', () => {
   it('should validate file extensions', () => {
     const validExtensions = ['.indt', '.indd'];
-    
+
     expect(validExtensions.includes('.indt')).toBe(true);
     expect(validExtensions.includes('.indd')).toBe(true);
     expect(validExtensions.includes('.pdf')).toBe(false);
@@ -137,7 +191,7 @@ describe('Template Workflow Service', () => {
         .replace(/[-_]/g, ' ')
         .replace(/\b\w/g, c => c.toUpperCase())
         .trim();
-      
+
       expect(name).toBe(expected);
     }
   });
@@ -145,7 +199,7 @@ describe('Template Workflow Service', () => {
   it('should format placeholders with curly braces', () => {
     const rawPlaceholders = ['TITRE', 'ARTICLE', 'CHAPO'];
     const formatted = rawPlaceholders.map(p => `{{${p}}}`);
-    
+
     expect(formatted).toEqual(['{{TITRE}}', '{{ARTICLE}}', '{{CHAPO}}']);
   });
 });

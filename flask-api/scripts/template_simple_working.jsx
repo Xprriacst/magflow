@@ -10,23 +10,34 @@ function main() {
     app.scriptPreferences.userInteractionLevel = UserInteractionLevels.NEVER_INTERACT;
 
     try {
-        // 1. Récupérer le chemin de la configuration via scriptArgs (passé par AppleScript)
+        // 1. Récupérer le chemin de la configuration
         var configPath = "";
-        
-        // Méthode 1: Via scriptArgs (recommandé)
-        if (app.scriptArgs.isDefined("configPath")) {
+        var scriptDir = (new File($.fileName)).parent;
+        var appDir = scriptDir.parent;
+
+        // Méthode 1: Lire depuis current_config_path.txt (créé par Flask)
+        // Cette méthode est la plus fiable avec InDesign 2026
+        var configPointerFile = new File(appDir + "/current_config_path.txt");
+        if (configPointerFile.exists) {
+            configPointerFile.open("r");
+            configPath = configPointerFile.read();
+            configPointerFile.close();
+            // Trim whitespace
+            configPath = configPath.replace(/^\s+|\s+$/g, "");
+        }
+
+        // Méthode 2: Via scriptArgs (ancienne méthode, peut ne pas fonctionner avec InDesign 2026)
+        if (!configPath && app.scriptArgs.isDefined("configPath")) {
             configPath = app.scriptArgs.getValue("configPath");
         }
-        
-        // Méthode 2: Fallback sur variable d'environnement
+
+        // Méthode 3: Fallback sur variable d'environnement
         if (!configPath) {
             configPath = $.getenv("MAGFLOW_CONFIG_PATH");
         }
-        
-        // Méthode 3: Fallback sur chemin par défaut (analysis/config.json)
+
+        // Méthode 4: Fallback sur chemin par défaut (analysis/config.json)
         if (!configPath) {
-            var scriptDir = (new File($.fileName)).parent;
-            var appDir = scriptDir.parent;
             configPath = appDir + "/analysis/config.json";
         }
         
@@ -120,23 +131,21 @@ function processDocument(doc, config) {
     
     // Mapping des champs config -> placeholders potentiels
     var textMapping = {
-        "titre": ["{{titre}}", "[Titre]", "Titre Principal", "Titre de l'article"],
-        "chapo": ["{{chapo}}", "[Chapo]", "Chapo", "Introduction"],
-        "text_content": ["{{texte}}", "[Texte]", "Texte Principal", "Corps de texte"],
-        "subtitle": ["{{sous-titre}}", "[Sous-titre]", "Sous-titre"]
+        "titre": ["{{TITRE}}", "{{titre}}", "[Titre]", "Titre Principal", "Titre de l'article"],
+        "chapo": ["{{SOUS-TITRE}}", "{{sous-titre}}", "{{chapo}}", "[Chapo]", "Chapo", "Introduction"],
+        "text_content": ["{{ARTICLE}}", "{{article}}", "{{texte}}", "[Texte]", "Texte Principal", "Corps de texte"],
+        "subtitle": ["{{SOUS-TITRE}}", "{{sous-titre}}", "[Sous-titre]", "Sous-titre"]
     };
 
     // Ajouter les valeurs directes de la config
+    // Priorité: prompt (titre principal envoyé par l'utilisateur)
     var data = {
-        "titre": config.prompt || config.title_text, // Fallback
-        "chapo": config.subtitle,
-        "text_content": config.text_content
+        "titre": config.prompt || config.title_text || "Sans titre",
+        "chapo": config.subtitle || "",
+        "text_content": config.text_content || ""
     };
-    
-    // Si l'IA a généré des instructions précises
-    if (config.layout_instructions) {
-        if (config.layout_instructions.title_text) data.titre = config.layout_instructions.title_text;
-    }
+
+    // Note: On n'utilise PAS layout_instructions.title_text car c'est une valeur par défaut de l'IA
 
     var allItems = doc.allPageItems;
     

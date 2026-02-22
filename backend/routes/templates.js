@@ -1,18 +1,24 @@
 import express from 'express';
-import { supabase, isSupabaseConfigured } from '../services/supabaseClient.js';
+import { supabase, supabaseAdmin, isSupabaseConfigured } from '../services/supabaseClient.js';
 import { recommendTemplates } from '../services/openaiService.js';
 import { analyzeAllTemplates, analyzeOneTemplate } from '../services/templateAnalyzer.js';
 import fallbackTemplates from '../data/templatesFallback.js';
+import { verifyToken, requireRole, optionalAuth, logUserAction } from '../middleware/auth.js';
+import { defaultLimiter } from '../middleware/rateLimit.js';
 
 const getFallbackTemplates = () => fallbackTemplates.filter(template => template.is_active !== false);
 
 const router = express.Router();
 
+// Apply default rate limiting
+router.use(defaultLimiter);
+
 /**
  * GET /api/templates
  * Récupère tous les templates actifs
+ * Optional auth - authenticated users see their own templates + public ones
  */
-router.get('/', async (req, res, next) => {
+router.get('/', optionalAuth, async (req, res, next) => {
   try {
     console.log('[Templates] Fetching all templates...');
 
@@ -178,11 +184,12 @@ router.post('/recommend', async (req, res, next) => {
 
 /**
  * POST /api/templates
- * Créer un nouveau template (admin)
+ * Créer un nouveau template (admin only)
  */
-router.post('/', async (req, res, next) => {
+router.post('/', verifyToken, requireRole('admin'), async (req, res, next) => {
   try {
     const templateData = req.body;
+    const userId = req.user.id;
 
     // Validation basique
     if (!templateData.name || !templateData.filename) {
@@ -192,15 +199,29 @@ router.post('/', async (req, res, next) => {
       });
     }
 
-    const { data, error } = await supabase
+    if (!isSupabaseConfigured || !supabaseAdmin) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    const { data, error } = await supabaseAdmin
       .from('indesign_templates')
-      .insert([templateData])
+      .insert([{ ...templateData, user_id: userId }])
       .select()
       .single();
 
     if (error) {
       throw new Error(`Database error: ${error.message}`);
     }
+
+    // Log the action
+    await logUserAction(userId, 'admin_action', {
+      action: 'create_template',
+      template_id: data.id,
+      template_name: data.name
+    }, req);
 
     console.log('[Templates] Created template:', data.id);
 
@@ -216,9 +237,9 @@ router.post('/', async (req, res, next) => {
 
 /**
  * POST /api/templates/analyze
- * Analyse tous les templates avec InDesign + IA (admin)
+ * Analyse tous les templates avec InDesign + IA (admin only)
  */
-router.post('/analyze', async (req, res, next) => {
+router.post('/analyze', verifyToken, requireRole('admin'), async (req, res, next) => {
   try {
     console.log('[Templates] Starting full template analysis...');
 
@@ -243,9 +264,9 @@ router.post('/analyze', async (req, res, next) => {
 
 /**
  * POST /api/templates/:id/analyze
- * Analyse un template spécifique (admin)
+ * Analyse un template spécifique (admin only)
  */
-router.post('/:id/analyze', async (req, res, next) => {
+router.post('/:id/analyze', verifyToken, requireRole('admin'), async (req, res, next) => {
   try {
     const { id } = req.params;
     
@@ -269,9 +290,9 @@ router.post('/:id/analyze', async (req, res, next) => {
 
 /**
  * PUT /api/templates/:id/preview
- * Met à jour l'image de preview d'un template (admin)
+ * Met à jour l'image de preview d'un template (admin only)
  */
-router.put('/:id/preview', async (req, res, next) => {
+router.put('/:id/preview', verifyToken, requireRole('admin'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { previewUrl } = req.body;

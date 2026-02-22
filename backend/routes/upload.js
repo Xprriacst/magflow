@@ -3,11 +3,16 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { verifyToken } from '../middleware/auth.js';
+import { defaultLimiter, uploadLimiter } from '../middleware/rateLimit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const router = express.Router();
+
+// Apply default rate limiting
+router.use(defaultLimiter);
 
 // Configuration du stockage
 const uploadDir = path.join(__dirname, '../../uploads/images');
@@ -45,8 +50,9 @@ const upload = multer({
 /**
  * POST /api/upload/images
  * Upload une ou plusieurs images
+ * Protected route - requires authentication
  */
-router.post('/images', upload.array('images', 10), (req, res, next) => {
+router.post('/images', verifyToken, uploadLimiter, upload.array('images', 10), (req, res, next) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -78,8 +84,9 @@ router.post('/images', upload.array('images', 10), (req, res, next) => {
 /**
  * DELETE /api/upload/images/:filename
  * Supprimer une image uploadée
+ * Protected route - requires authentication
  */
-router.delete('/images/:filename', (req, res, next) => {
+router.delete('/images/:filename', verifyToken, (req, res, next) => {
   try {
     const { filename } = req.params;
     const filePath = path.join(uploadDir, filename);

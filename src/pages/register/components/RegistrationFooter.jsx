@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import Icon from '../../../components/AppIcon';
 
 const RegistrationFooter = () => {
@@ -50,16 +51,16 @@ const RegistrationFooter = () => {
 
       {/* Legal Links */}
       <div className="flex flex-wrap items-center justify-center space-x-6 mb-6 text-sm">
-        <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-          Conditions d'utilisation
-        </a>
-        <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-          Politique de confidentialité
-        </a>
-        <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-          Mentions légales
-        </a>
-        <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+        <Link to="/legal/cgv" className="text-muted-foreground hover:text-foreground transition-colors">
+          CGV
+        </Link>
+        <Link to="/legal/privacy" className="text-muted-foreground hover:text-foreground transition-colors">
+          Confidentialité
+        </Link>
+        <Link to="/legal/rgpd" className="text-muted-foreground hover:text-foreground transition-colors">
+          RGPD
+        </Link>
+        <a href="mailto:contact@magflow.app" className="text-muted-foreground hover:text-foreground transition-colors">
           Contact
         </a>
       </div>

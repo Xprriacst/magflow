@@ -66,7 +66,7 @@ RETOURNE UN OBJET JSON avec exactement cette structure:
 Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-4-5-sonnet-20250514',
+model: 'claude-4-5-sonnet-20250514',
       max_tokens: 4096,
       messages: [{
         role: 'user',
