@@ -405,18 +405,52 @@ def execute_indesign_script(project_id, config_path):
         cmd = ['osascript', '-e', applescript_cmd]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
-        if result.returncode == 0:
-            output_file = os.path.join(app.config['OUTPUT_FOLDER'], f'{project_id}.indd')
-            return {
-                'success': True,
-                'output_file': output_file,
-                'message': 'Script InDesign exécuté avec succès'
-            }
-        else:
+        if result.returncode != 0:
             return {
                 'success': False,
                 'error': f'Erreur script InDesign: {result.stderr}'
             }
+
+        # Valider la présence réelle du fichier généré.
+        # Le script JSX sauvegarde actuellement à côté de config.json (dossier projet uploads/<id>/).
+        config_dir = os.path.dirname(os.path.abspath(config_path))
+        upload_output_file = os.path.join(config_dir, f'{project_id}.indd')
+        default_output_file = os.path.join(app.config['OUTPUT_FOLDER'], f'{project_id}.indd')
+
+        if os.path.exists(upload_output_file):
+            # Maintenir la compatibilité avec /api/download/<project_id> (dossier output)
+            try:
+                os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
+                shutil.copy2(upload_output_file, default_output_file)
+            except Exception:
+                pass
+            return {
+                'success': True,
+                'output_file': default_output_file if os.path.exists(default_output_file) else upload_output_file,
+                'message': 'Script InDesign exécuté avec succès'
+            }
+
+        if os.path.exists(default_output_file):
+            return {
+                'success': True,
+                'output_file': default_output_file,
+                'message': 'Script InDesign exécuté avec succès'
+            }
+
+        debug_log = os.path.join(config_dir, 'placement_debug.log')
+        debug_excerpt = ''
+        if os.path.exists(debug_log):
+            try:
+                with open(debug_log, 'r', encoding='utf-8') as f:
+                    debug_excerpt = f.read()[-1500:]
+            except Exception:
+                debug_excerpt = ''
+
+        return {
+            'success': False,
+            'error': 'Script InDesign exécuté mais aucun fichier .indd trouvé',
+            'debug': debug_excerpt
+        }
 
     except subprocess.TimeoutExpired:
         return {

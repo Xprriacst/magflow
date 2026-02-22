@@ -57,6 +57,7 @@ function main() {
         
         // Parser le JSON (eval sécurisé pour ExtendScript)
         var config = eval("(" + configContent + ")");
+        config.__configPath = configPath;
 
         // 2. Ouvrir le template
         // Le template peut être un nom (dans le dossier templates par défaut) ou un chemin absolu
@@ -119,7 +120,16 @@ function main() {
         doc.close(SaveOptions.NO);
 
     } catch (e) {
-        alert("Erreur InDesign : " + e.message + " (Ligne " + e.line + ")");
+        try {
+            if (configPath) {
+                var cfg = new File(configPath);
+                var errFile = new File(cfg.parent + "/placement_error.log");
+                errFile.open("w");
+                errFile.write("Erreur InDesign: " + e.message + " (Ligne " + e.line + ")");
+                errFile.close();
+            }
+        } catch (wErr) {}
+        throw e;
     } finally {
         app.scriptPreferences.userInteractionLevel = UserInteractionLevels.INTERACT_WITH_ALL;
     }
@@ -147,7 +157,77 @@ function processDocument(doc, config) {
 
     // Note: On n'utilise PAS layout_instructions.title_text car c'est une valeur par défaut de l'IA
 
-    var allItems = doc.allPageItems;
+    var allItems = [];
+    var fromAllPageItems = 0;
+    var fromPageItems = 0;
+    var fromMasterItems = 0;
+
+    try {
+        if (doc.allPageItems && doc.allPageItems.length) {
+            var resolvedAllItems = doc.allPageItems.everyItem().getElements();
+            for (var api = 0; api < resolvedAllItems.length; api++) {
+                allItems.push(resolvedAllItems[api]);
+            }
+            fromAllPageItems = resolvedAllItems.length;
+        }
+    } catch (e0) {}
+
+    if (allItems.length === 0) {
+        try {
+            var directItems = doc.pageItems.everyItem().getElements();
+            for (var dpi = 0; dpi < directItems.length; dpi++) {
+                allItems.push(directItems[dpi]);
+            }
+            fromPageItems = directItems.length;
+        } catch (e1) {}
+    }
+
+    // Fallback important: certains templates portent leurs éléments sur les masters.
+    if (allItems.length === 0) {
+        try {
+            for (var ms = 0; ms < doc.masterSpreads.length; ms++) {
+                var msItems = doc.masterSpreads[ms].pageItems.everyItem().getElements();
+                for (var mi = 0; mi < msItems.length; mi++) {
+                    allItems.push(msItems[mi]);
+                    fromMasterItems++;
+                }
+            }
+        } catch (e2) {}
+    }
+    var imageIndex = 0;
+    var debugLines = [];
+
+    function logDebug(line) {
+        try {
+            debugLines.push(line);
+        } catch (e) {}
+    }
+
+    function flushDebug() {
+        try {
+            if (!config.__configPath) return;
+            var cfgFile = new File(config.__configPath);
+            var debugFile = new File(cfgFile.parent + "/placement_debug.log");
+            debugFile.open("w");
+            debugFile.write(debugLines.join("\n"));
+            debugFile.close();
+        } catch (e) {}
+    }
+
+    function safeName(obj) {
+        try {
+            if (obj.label && obj.label.length > 0) return obj.label;
+            if (obj.name && obj.name.length > 0) return obj.name;
+        } catch (e) {}
+        return "(sans_nom)";
+    }
+
+    function readFillName(obj) {
+        try {
+            return obj.fillColor ? String(obj.fillColor.name || "") : "";
+        } catch (e) {}
+        return "";
+    }
     
     for (var i = 0; i < allItems.length; i++) {
         var item = allItems[i];
@@ -176,36 +256,145 @@ function processDocument(doc, config) {
         }
         
         // IMAGES
-        // On remplit les rectangles d'images séquentiellement
-        else if ((item instanceof Rectangle || item instanceof Polygon || item instanceof Oval) && 
-                 (item.contentType === ContentType.GRAPHIC_TYPE || item.contentType === ContentType.UNASSIGNED)) {
-            
-            // Vérifier si c'est un placeholder d'image (taille suffisante)
-            var bounds = item.geometricBounds;
-            var w = bounds[3] - bounds[1];
-            var h = bounds[2] - bounds[0];
-            
-            if (w > 20 && h > 20) {
-                // On utilise une propriété statique pour compter les images déjà placées
-                if (typeof main.imageIndex == 'undefined') main.imageIndex = 0;
-                
-                if (config.images && main.imageIndex < config.images.length) {
-                    var imagePath = config.images[main.imageIndex];
-                    var imgFile = new File(imagePath);
-                    
-                    if (imgFile.exists) {
-                        try {
-                            item.place(imgFile);
-                            item.fit(FitOptions.FILL_PROPORTIONALLY);
-                            item.fit(FitOptions.CENTER_CONTENT);
-                            main.imageIndex++;
-                        } catch(e) {
-                            // Ignorer erreur de placement
-                        }
+        // Traitement image fait après scan complet pour classer correctement les cadres.
+    }
+
+    // B. Placement des images: sélectionner les meilleurs cadres (score), puis placer séquentiellement.
+    var imageCandidates = [];
+    var shapeDiagnostics = [];
+    for (var c = 0; c < allItems.length; c++) {
+        var candidate = allItems[c];
+        var dbgType = "unknown";
+        try { dbgType = String(candidate.reflect.name); } catch (eType) {}
+        var cb = null;
+        try { cb = candidate.geometricBounds; } catch (e) { cb = null; }
+        if (!cb || cb.length !== 4) {
+            shapeDiagnostics.push("RAW type=" + dbgType + " bounds=none");
+            continue;
+        }
+        shapeDiagnostics.push("RAW type=" + dbgType + " bounds=" + cb.join(","));
+
+        if (candidate instanceof TextFrame) {
+            continue;
+        }
+
+        var cw = cb[3] - cb[1];
+        var ch = cb[2] - cb[0];
+        var area = cw * ch;
+        if (cw < 1 || ch < 1) {
+            continue;
+        }
+
+        var ctype = null;
+        try { ctype = candidate.contentType; } catch (e) {}
+
+        var score = 0;
+        // Priorité type cadre
+        if (ctype === ContentType.GRAPHIC_TYPE) score += 2000;
+        if (ctype === ContentType.UNASSIGNED) score += 1300;
+
+        // Priorité aux grands cadres (mais on pénalise les rectangles "fond de page")
+        score += Math.floor(area * 10);
+        if (area > 160) {
+            score -= 4000;
+        }
+
+        // Priorité aux labels explicites
+        var lbl = "";
+        try { lbl = (candidate.label || "").toLowerCase(); } catch (e) {}
+        if (lbl.indexOf("image") !== -1 || lbl.indexOf("photo") !== -1 || lbl.indexOf("visuel") !== -1) {
+            score += 1500;
+        }
+
+        // Heuristique visuelle: placeholders souvent jaunes
+        var fillName = readFillName(candidate).toLowerCase();
+        if (fillName.indexOf("yellow") !== -1 || fillName.indexOf("jaune") !== -1) {
+            score += 2200;
+        }
+
+        var typeName = "";
+        try { typeName = String(candidate.reflect.name); } catch (e) { typeName = "unknown"; }
+
+        // Priorité aux items posés sur une page (et pas objets parasites)
+        try {
+            if (candidate.parentPage) score += 300;
+        } catch (e) {}
+
+        shapeDiagnostics.push("RAW type=" + typeName + " area=" + area + " fill=" + fillName + " label=" + lbl);
+
+        imageCandidates.push({
+            item: candidate,
+            score: score,
+            w: cw,
+            h: ch,
+            area: area,
+            type: String(ctype),
+            typeName: typeName,
+            hasGraphics: (function() {
+                try { return candidate.allGraphics.length; } catch (e) { return -1; }
+            })(),
+            fill: fillName,
+            name: safeName(candidate)
+        });
+    }
+
+    imageCandidates.sort(function(a, b) { return b.score - a.score; });
+
+    logDebug("=== IMAGE PLACEMENT DEBUG ===");
+    logDebug("ITEM SOURCES allPageItems=" + fromAllPageItems + " pageItems=" + fromPageItems + " masterItems=" + fromMasterItems + " total=" + allItems.length);
+    logDebug("Images input: " + (config.images ? config.images.length : 0));
+    logDebug("Placable raw items: " + shapeDiagnostics.length);
+    for (var sd = 0; sd < shapeDiagnostics.length && sd < 40; sd++) {
+        logDebug(shapeDiagnostics[sd]);
+    }
+    logDebug("Candidates: " + imageCandidates.length);
+    for (var cc = 0; cc < imageCandidates.length; cc++) {
+        var ic = imageCandidates[cc];
+        logDebug("CAND[" + cc + "] score=" + ic.score + " type=" + ic.type + " typeName=" + ic.typeName + " area=" + ic.area + " fill=" + ic.fill + " g=" + ic.hasGraphics + " name=" + ic.name);
+    }
+
+    if (config.images && config.images.length > 0) {
+        for (var p = 0; p < imageCandidates.length && imageIndex < config.images.length; p++) {
+            var picked = imageCandidates[p];
+            var imagePath = config.images[imageIndex];
+            var imgFile = new File(imagePath);
+
+            if (!imgFile.exists) {
+                logDebug("SKIP image not found: " + imagePath);
+                imageIndex++;
+                continue;
+            }
+
+            try {
+                // Déverrouiller si nécessaire
+                try { picked.item.locked = false; } catch (u1) {}
+                try { picked.item.itemLayer.locked = false; } catch (u2) {}
+                try { picked.item.itemLayer.visible = true; } catch (u3) {}
+
+                // Si un visuel existe déjà, le remplacer explicitement
+                try {
+                    while (picked.item.allGraphics && picked.item.allGraphics.length > 0) {
+                        picked.item.allGraphics[0].remove();
                     }
-                }
+                } catch (rmErr) {}
+
+                picked.item.place(imgFile);
+                picked.item.fit(FitOptions.FILL_PROPORTIONALLY);
+                picked.item.fit(FitOptions.CENTER_CONTENT);
+                logDebug("PLACED image[" + imageIndex + "] -> cand[" + p + "] name=" + picked.name + " area=" + picked.area);
+                imageIndex++;
+            } catch (placeErr) {
+                logDebug("ERROR cand[" + p + "] name=" + picked.name + " : " + placeErr.message);
             }
         }
+    }
+
+    logDebug("Placed images: " + imageIndex + "/" + (config.images ? config.images.length : 0));
+    flushDebug();
+
+    // Fallback final: si rien placé, ne pas masquer le problème.
+    if (config.images && config.images.length > 0 && imageIndex === 0) {
+        throw new Error("Aucune image n'a pu être placée. Voir placement_debug.log");
     }
 }
 

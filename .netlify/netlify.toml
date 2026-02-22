@@ -14,8 +14,8 @@ command = "npm run build"
 
 [build.environment]
 NODE_VERSION = "18"
-VITE_API_URL = "https://magflow-api-staging.onrender.com"
-VITE_ENV = "staging"
+VITE_API_URL = "https://magflow.onrender.com"
+VITE_ENV = "production"
 
 [build.processing]
 
