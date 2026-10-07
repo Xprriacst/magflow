@@ -1,26 +1,23 @@
-import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
-
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
 });
 
+export const CLAUDE_MODEL = 'claude-sonnet-5-5';
+
 /**
- * Analyse la structure éditoriale d'un contenu avec Claude Sonnet 4
+ * Analyse la structure éditoriale d'un contenu avec Claude Sonnet
  * EXTRACTION PURE - Ne reformule JAMAIS le contenu original
  * @param {string} content - Le contenu textuel à analyser
  * @returns {Promise<Object>} Structure éditoriale analysée
  */
 export async function analyzeContentStructure(content) {
   try {
-    console.log('[Claude] 🤖 Analyzing content structure with Claude Sonnet 4...');
+    console.log(`[Claude] 🤖 Analyzing content structure with ${CLAUDE_MODEL}...`);
 
     const prompt = `Tu es un analyseur de structure éditoriale. 
 Ton rôle est d'IDENTIFIER et EXTRAIRE les différentes parties d'un article, SANS RIEN REFORMULER.
@@ -66,7 +63,7 @@ RETOURNE UN OBJET JSON avec exactement cette structure:
 Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-4-5-sonnet-20250514',
+      model: CLAUDE_MODEL,
       max_tokens: 4096,
       messages: [{
         role: 'user',
@@ -147,13 +144,13 @@ export async function recommendTemplates(contentStructure, imageCount, available
 }
 
 /**
- * Enrichit les métadonnées d'un template avec l'IA (Claude Sonnet 4.5)
+ * Enrichit les métadonnées d'un template avec l'IA (Claude Sonnet)
  * @param {Object} templateData - Données extraites du template
  * @returns {Promise<Object>} Métadonnées enrichies
  */
 export async function enrichTemplateMetadata(templateData) {
   try {
-    console.log('[Claude] 🤖 Analyzing template with Claude Sonnet 4.5...');
+    console.log(`[Claude] 🤖 Analyzing template with ${CLAUDE_MODEL}...`);
 
     const prompt = `Analyse ce template InDesign et suggère des métadonnées appropriées.
 
@@ -181,7 +178,7 @@ RETOURNE UN OBJET JSON avec exactement cette structure:
 Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-4-5-sonnet-20250514',
+      model: CLAUDE_MODEL,
       max_tokens: 1024,
       messages: [{
         role: 'user',
