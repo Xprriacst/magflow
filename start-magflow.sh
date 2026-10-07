@@ -34,20 +34,20 @@ sleep 1
 
 # 1. Backend Node.js avec WebSocket
 echo -e "${BLUE}📦 Démarrage Backend + WebSocket...${NC}"
-cd magflow/backend
+cd backend
 if [ ! -d "node_modules" ]; then
     echo -e "${YELLOW}📦 Installation des dépendances Backend...${NC}"
     npm install
 fi
-npm run dev > ../../backend.log 2>&1 &
+npm run dev > ../backend.log 2>&1 &
 BACKEND_PID=$!
 echo -e "${GREEN}✅ Backend démarré (PID: $BACKEND_PID)${NC}"
-cd ../..
+cd ..
 sleep 2
 
 # 2. Flask API
 echo -e "${BLUE}🐍 Démarrage Flask API...${NC}"
-cd magflow/flask-api
+cd flask-api
 
 # Setup venv if missing
 if [ ! -d "venv" ]; then
@@ -59,24 +59,21 @@ else
     source venv/bin/activate
 fi
 
-python3 app.py > ../../flask.log 2>&1 &
+python3 app.py > ../flask.log 2>&1 &
 FLASK_PID=$!
 echo -e "${GREEN}✅ Flask démarré (PID: $FLASK_PID)${NC}"
-cd ../..
+cd ..
 sleep 2
 
 # 3. Frontend React
 echo -e "${BLUE}⚛️  Démarrage Frontend React...${NC}"
-cd magflow
 if [ ! -d "node_modules" ]; then
     echo -e "${YELLOW}⚛️  Installation des dépendances Frontend...${NC}"
     npm install
 fi
-npm run dev > ../frontend.log 2>&1 &
+npm run dev > frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo -e "${GREEN}✅ Frontend démarré (PID: $FRONTEND_PID)${NC}"
-cd ..
-
 # Résumé
 echo ""
 echo -e "${GREEN}════════════════════════════════════════${NC}"
