@@ -17,7 +17,7 @@ async function updateTemplateMetadata() {
   console.log('\n📝 Mise à jour des métadonnées du template...\n');
   
   const templateId = '30050538-7b3b-4147-b587-cd9e39f1e7ce';
-  const newFilePath = '/Users/alexandreerrasti/Documents/magflow/Indesign automation v1/indesign_templates/Template 251025_2_PH.indt';
+  const newFilePath = 'Template 251025_2_PH.indt';
   
   // Métadonnées basées sur l'inspection originale (corrigées avec TITRE)
   const charLimits = {

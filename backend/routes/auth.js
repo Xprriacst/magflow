@@ -1,5 +1,6 @@
 import express from 'express';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient.js';
+import { requireUserAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -60,30 +61,14 @@ router.post('/login', async (req, res) => {
  * POST /api/auth/verify
  * Vérifie un token
  */
-router.post('/verify', async (req, res) => {
+router.post('/verify', requireUserAuth, async (req, res) => {
   try {
-    const { token } = req.body;
-
-    if (!token) {
-      return res.status(400).json({ valid: false });
-    }
-
-    if (!isSupabaseConfigured) {
-      return res.status(500).json({ valid: false, error: 'Supabase non configuré' });
-    }
-
-    const { data, error } = await supabase.auth.getUser(token);
-
-    if (error || !data.user) {
-      return res.json({ valid: false });
-    }
-
     res.json({
       valid: true,
       user: {
-        id: data.user.id,
-        email: data.user.email,
-        name: data.user.user_metadata?.full_name || data.user.email.split('@')[0]
+        id: req.user.id,
+        email: req.user.email,
+        name: req.user.user_metadata?.full_name || req.user.email.split('@')[0]
       }
     });
 

@@ -18,10 +18,7 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 async function addTemplate(filename, displayName) {
   try {
     const templateId = randomUUID();
-    const filePath = path.join(
-      '/Users/alexandreerrasti/Documents/magflow/Indesign automation v1/indesign_templates',
-      filename
-    );
+    const filePath = filename;
 
     console.log(`\n📄 Ajout du template:`);
     console.log(`   ID: ${templateId}`);

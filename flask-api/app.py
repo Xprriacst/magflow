@@ -11,6 +11,7 @@ import shutil
 from dotenv import load_dotenv
 import requests
 import io
+import hmac
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -43,19 +44,23 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def _require_bearer_or_401():
-    """Vérifie le header Authorization: Bearer <token> si API_TOKEN est défini.
-    Retourne (None, None) si OK, sinon (json_response, status_code)."""
+    """Vérifie le header Authorization: Bearer <token>."""
     api_token = os.getenv('API_TOKEN')
     if not api_token:
-        # Aucun token requis si non configuré
-        return None, None
+        return jsonify({'error': 'API authentication is not configured'}), 503
     auth_header = request.headers.get('Authorization', '')
     if not auth_header.startswith('Bearer '):
         return jsonify({'error': 'Unauthorized'}), 401
     provided = auth_header.replace('Bearer ', '', 1).strip()
-    if provided != api_token:
-        return jsonify({'error': 'Forbidden'}), 403
+    if not hmac.compare_digest(provided, api_token):
+        return jsonify({'error': 'Unauthorized'}), 401
     return None, None
+
+@app.before_request
+def require_api_authentication():
+    err, status = _require_bearer_or_401()
+    if err:
+        return err, status
 
 def _parse_image_urls_from_request(req: request):
     """Supporte JSON { image_urls: [...] }, form-data image_urls (répétés) ou string CSV."""
@@ -130,7 +135,7 @@ def index():
 @app.route('/api/create-layout', methods=['POST'])
 def create_layout():
     try:
-        # Auth (optionnelle si API_TOKEN non défini)
+        # Auth également appliquée globalement par before_request
         err, status = _require_bearer_or_401()
         if err:
             return err, status
@@ -207,7 +212,7 @@ def create_layout():
 def create_layout_urls():
     """Crée une mise en page en téléchargeant des images depuis des URLs fournies."""
     try:
-        # Auth (optionnelle si API_TOKEN non défini)
+        # Auth également appliquée globalement par before_request
         err, status = _require_bearer_or_401()
         if err:
             return err, status
@@ -539,7 +544,7 @@ def analyze_template():
         print('🔍 FLASK: Template Analysis Request Received')
         print('='*70)
 
-        # Auth (optionnelle si API_TOKEN non défini)
+        # Auth également appliquée globalement par before_request
         err, status = _require_bearer_or_401()
         if err:
             return err, status
@@ -707,7 +712,7 @@ def upload_and_analyze_template():
     Retourne les métadonnées et la miniature uploadée vers Supabase.
     """
     try:
-        # Auth (optionnelle si API_TOKEN non défini)
+        # Auth également appliquée globalement par before_request
         err, status = _require_bearer_or_401()
         if err:
             return err, status

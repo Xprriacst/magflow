@@ -3,17 +3,30 @@
  * Communication avec le backend Node.js
  */
 
+import { supabase } from '../lib/supabase';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+async function getAuthHeaders() {
+  const { data } = supabase
+    ? await supabase.auth.getSession()
+    : { data: { session: null } };
+  return data.session?.access_token
+    ? { Authorization: `Bearer ${data.session.access_token}` }
+    : {};
+}
 
 /**
  * Wrapper fetch avec gestion d'erreurs
  */
 async function apiCall(endpoint, options = {}) {
   try {
+    const authHeaders = await getAuthHeaders();
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders,
         ...options.headers,
       },
     });
@@ -173,6 +186,7 @@ export const templatesAPI = {
 
       const response = await fetch(`${API_BASE_URL}/api/templates/upload-and-process`, {
         method: 'POST',
+        headers: await getAuthHeaders(),
         body: formData,
         signal: controller.signal,
         // Note: Ne pas définir Content-Type, le navigateur le fait automatiquement avec FormData
@@ -218,6 +232,7 @@ export const templatesAPI = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...await getAuthHeaders(),
         },
         signal: controller.signal,
       });

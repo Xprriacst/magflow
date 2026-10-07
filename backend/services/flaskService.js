@@ -49,6 +49,9 @@ export async function generateMagazine({
   imageUrls
 }) {
   try {
+    if (!FLASK_API_TOKEN) {
+      throw new Error('FLASK_API_TOKEN is required');
+    }
     // Formatter le contenu en texte lisible
     const textContent = formatContentForInDesign(contentStructure);
     
@@ -73,10 +76,7 @@ export async function generateMagazine({
       'Content-Type': 'application/x-www-form-urlencoded'
     };
 
-    // Ajouter token si configuré
-    if (FLASK_API_TOKEN) {
-      headers['Authorization'] = `Bearer ${FLASK_API_TOKEN}`;
-    }
+    headers['Authorization'] = `Bearer ${FLASK_API_TOKEN}`;
 
     console.log(`[Flask] Calling ${FLASK_API_URL}/api/create-layout-urls`);
     console.log('[Flask] Template ID:', templateIdentifier);

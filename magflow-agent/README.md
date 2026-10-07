@@ -66,6 +66,16 @@ L'agent stocke sa configuration dans:
 - macOS: `~/Library/Application Support/magflow-agent/`
 - Windows: `%APPDATA%/magflow-agent/`
 
+Les emplacements peuvent être définis sans modifier le code :
+
+- `MAGFLOW_DATA_DIR` : racine des données de rendu ;
+- `MAGFLOW_TEMPLATES_DIR` : catalogue local des gabarits ;
+- `MAGFLOW_JOBS_DIR` : fichiers de travail des jobs.
+
+Les deux derniers utilisent respectivement `<data>/templates` et `<data>/jobs`
+quand ils ne sont pas renseignés. La base conserve uniquement le nom portable
+du gabarit ; l'agent le résout sous `MAGFLOW_TEMPLATES_DIR`.
+
 ## Dépannage
 
 ### InDesign non détecté

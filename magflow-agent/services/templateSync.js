@@ -11,22 +11,29 @@ const Store = require('electron-store');
 
 const store = new Store();
 
-// Configuration
-const TEMPLATES_CACHE_DIR = path.join(
-  process.env.APPDATA || process.env.HOME,
-  '.magflow',
-  'templates'
-);
+// Injecté au démarrage depuis la configuration de l'agent.
+let templatesCacheDir;
+
+function configure({ templatesDir }) {
+  if (!templatesDir) throw new Error('templatesDir est requis');
+  templatesCacheDir = templatesDir;
+}
+
+function getTemplatesCacheDir() {
+  if (!templatesCacheDir) throw new Error('TemplateSync doit être configuré avant utilisation');
+  return templatesCacheDir;
+}
 
 /**
  * Initialise le dossier de cache des templates
  */
 function ensureCacheDir() {
-  if (!fs.existsSync(TEMPLATES_CACHE_DIR)) {
-    fs.mkdirSync(TEMPLATES_CACHE_DIR, { recursive: true });
-    console.log('[TemplateSync] Cache directory created:', TEMPLATES_CACHE_DIR);
+  const cacheDir = getTemplatesCacheDir();
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+    console.log('[TemplateSync] Cache directory created:', cacheDir);
   }
-  return TEMPLATES_CACHE_DIR;
+  return cacheDir;
 }
 
 /**
@@ -177,7 +184,7 @@ function getLocalTemplatePath(templateId) {
   const templates = store.get('cachedTemplates') || [];
   const template = templates.find(t => t.id === templateId);
   if (template) {
-    const localPath = path.join(TEMPLATES_CACHE_DIR, template.filename);
+    const localPath = path.join(getTemplatesCacheDir(), template.filename);
     if (fs.existsSync(localPath)) {
       return localPath;
     }
@@ -197,7 +204,7 @@ function isTemplateAvailable(templateId) {
  */
 function getLocalTemplates() {
   ensureCacheDir();
-  const files = fs.readdirSync(TEMPLATES_CACHE_DIR);
+  const files = fs.readdirSync(getTemplatesCacheDir());
   return files.filter(f => f.endsWith('.indt') || f.endsWith('.indd'));
 }
 
@@ -205,10 +212,11 @@ function getLocalTemplates() {
  * Nettoie le cache des templates
  */
 function clearCache() {
-  if (fs.existsSync(TEMPLATES_CACHE_DIR)) {
-    const files = fs.readdirSync(TEMPLATES_CACHE_DIR);
+  const cacheDir = getTemplatesCacheDir();
+  if (fs.existsSync(cacheDir)) {
+    const files = fs.readdirSync(cacheDir);
     for (const file of files) {
-      fs.unlinkSync(path.join(TEMPLATES_CACHE_DIR, file));
+      fs.unlinkSync(path.join(cacheDir, file));
     }
     console.log('[TemplateSync] Cache cleared');
   }
@@ -216,11 +224,12 @@ function clearCache() {
 }
 
 module.exports = {
+  configure,
   syncTemplates,
   getLocalTemplatePath,
   isTemplateAvailable,
   getLocalTemplates,
   clearCache,
   ensureCacheDir,
-  TEMPLATES_CACHE_DIR
+  getTemplatesCacheDir
 };

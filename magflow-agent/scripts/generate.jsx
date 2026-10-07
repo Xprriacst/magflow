@@ -72,8 +72,12 @@ function main() {
     try {
         alert("🚀 Début du script InDesign");
         
-        // Chemin de base fixe
-        var basePath = "/Users/alexandreerrasti/Library/Mobile Documents/com~apple~CloudDocs/Indesign automation v1";
+        var basePath = $.getenv("MAGFLOW_DATA_DIR");
+        if (!basePath) {
+            alert("❌ MAGFLOW_DATA_DIR n'est pas configuré");
+            return false;
+        }
+        var templatesPath = $.getenv("MAGFLOW_TEMPLATES_DIR") || (basePath + "/templates");
         
         // Trouver le dernier projet
         var uploadsFolder = new Folder(basePath + "/uploads");
@@ -123,14 +127,8 @@ function main() {
         
         // Ouvrir le template (dynamique depuis config ou fallback)
         var templateName = config.template || "template-mag-simple-1808.indt";
-        var templatePath = basePath + "/indesign_templates/" + templateName;
+        var templatePath = templatesPath + "/" + templateName;
         var templateFile = new File(templatePath);
-        
-        // Si le template n'existe pas, essayer dans le dossier parent (magflow)
-        if (!templateFile.exists) {
-            templatePath = "/Users/alexandreerrasti/magflow0312/magflow/Indesign automation v1/" + templateName;
-            templateFile = new File(templatePath);
-        }
         
         if (!templateFile.exists) {
             alert("❌ Template non trouvé: " + templatePath);

@@ -15,6 +15,11 @@ const BACKEND_URL = process.env.MAGFLOW_BACKEND || 'https://magflow.onrender.com
 const INDESIGN_APP = process.env.INDESIGN_APP || 'Adobe InDesign 2026';
 const WORK_DIR = process.env.MAGFLOW_WORK_DIR || path.join(process.env.HOME, 'MagFlow');
 const AGENT_ID = process.env.MAGFLOW_AGENT_ID || uuidv4();
+const AGENT_TOKEN = process.env.MAGFLOW_AGENT_TOKEN;
+
+if (!AGENT_TOKEN) {
+  throw new Error('MAGFLOW_AGENT_TOKEN is required');
+}
 
 // Créer le dossier de travail
 if (!fs.existsSync(WORK_DIR)) {
@@ -230,6 +235,7 @@ function connect() {
   console.log('\n🔌 Connexion au backend...');
   
   const socket = io(BACKEND_URL, {
+    auth: { token: AGENT_TOKEN },
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionDelay: 5000

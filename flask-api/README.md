@@ -71,6 +71,10 @@ Copier `.env.example` vers `.env` et remplir les valeurs:
 cp .env.example .env
 ```
 
+`MAGFLOW_OUTPUT_FOLDER` configure l'unique dossier utilisé à la fois par le
+script JSX et par `GET /api/download/<project_id>`. Un chemin relatif est résolu
+depuis `flask-api/`.
+
 ### Lancer
 
 ```bash

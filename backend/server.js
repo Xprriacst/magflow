@@ -30,7 +30,10 @@ const devAllowedOrigins = [
   'http://localhost:3000',
   'http://localhost:4028'
 ];
-const configuredOrigins = parseAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS);
+const configuredOrigins = [
+  ...parseAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS),
+  ...parseAllowedOrigins(process.env.FRONTEND_URL)
+];
 const allowedOrigins = configuredOrigins.length > 0
   ? configuredOrigins
   : (process.env.NODE_ENV === 'production' ? [] : devAllowedOrigins);
@@ -157,7 +160,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', requireUserAuth, express.static(path.join(__dirname, '../uploads')));
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', requireUserAuth, (req, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),

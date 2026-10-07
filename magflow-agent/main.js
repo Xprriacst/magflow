@@ -7,6 +7,7 @@ const fs = require('fs');
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const templateSync = require('./services/templateSync');
+const { createAgentConfig } = require('./config');
 
 // Configuration
 const store = new Store();
@@ -19,6 +20,7 @@ let tray = null;
 let socket = null;
 let isConnected = false;
 let currentUser = null;
+let agentConfig = null;
 
 // Créer la fenêtre principale
 function createWindow() {
@@ -216,7 +218,7 @@ async function executeJob(job) {
   console.log('📄 Template utilisé:', resolvedTemplatePath);
   
   // Créer le dossier du projet
-  const projectDir = path.join(app.getPath('temp'), 'magflow', projectId);
+  const projectDir = path.join(agentConfig.jobsDir, projectId);
   fs.mkdirSync(projectDir, { recursive: true });
   
   // Télécharger les images
@@ -427,12 +429,8 @@ async function syncTemplatesAtStartup() {
 
 // Résoudre le chemin local d'un template
 function resolveTemplatePath(job) {
-  // Si template_path fourni et existe, l'utiliser
-  if (job.template_path && fs.existsSync(job.template_path)) {
-    return job.template_path;
-  }
-  
-  // Sinon chercher dans le cache local
+  // Les chemins de la base sont des identifiants portables. Aucun chemin
+  // machine reçu du serveur n'est exécuté directement.
   const cachedTemplates = store.get('cachedTemplates') || [];
   const template = cachedTemplates.find(t => 
     t.id === job.template_id || 
@@ -445,9 +443,10 @@ function resolveTemplatePath(job) {
   }
   
   // Fallback: chercher dans le dossier templates local
-  const cacheDir = templateSync.TEMPLATES_CACHE_DIR;
-  if (job.template_name) {
-    const localPath = path.join(cacheDir, job.template_name);
+  const cacheDir = templateSync.getTemplatesCacheDir();
+  const portableName = job.template_name || (job.template_path && path.basename(job.template_path));
+  if (portableName) {
+    const localPath = path.join(cacheDir, portableName);
     if (fs.existsSync(localPath)) {
       return localPath;
     }
@@ -458,6 +457,8 @@ function resolveTemplatePath(job) {
 
 // App lifecycle
 app.whenReady().then(async () => {
+  agentConfig = createAgentConfig({ userDataDir: app.getPath('userData') });
+  templateSync.configure(agentConfig);
   createWindow();
   createTray();
   
@@ -546,7 +547,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('get-local-templates', () => {
     return {
       templates: store.get('cachedTemplates') || [],
-      cacheDir: templateSync.TEMPLATES_CACHE_DIR,
+      cacheDir: templateSync.getTemplatesCacheDir(),
       synced: templatesSynced
     };
   });

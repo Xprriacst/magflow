@@ -87,18 +87,15 @@ function main() {
         processDocument(doc, config);
 
         // 4. Sauvegarde
-        // Le nom de fichier de sortie est basé sur le project_id
-        var outputFolder = new Folder(configFile.parent); // Sauvegarder à côté du config.json par défaut
-        var outputName = config.project_id + ".indd";
-        
-        // Si un dossier output spécifique est configuré (relatif à flask-api)
-        // Mais Flask attend le fichier dans app.config['OUTPUT_FOLDER']
-        // Le plus simple est de le sauvegarder là où Flask l'attend.
-        // Flask copie ensuite le résultat ou le sert depuis 'output'.
-        // Pour simplifier, on sauvegarde dans le dossier du projet temporaire (là où est config.json)
-        // et Flask s'occupera de le déplacer si nécessaire, ou on le met direct dans flask-api/output
-        
-        var outputFile = new File(outputFolder + "/" + outputName);
+        if (!config.output_path) {
+            throw new Error("Chemin de sortie absent de la configuration");
+        }
+
+        var outputFile = new File(config.output_path);
+        var outputFolder = outputFile.parent;
+        if (!outputFolder.exists && !outputFolder.create()) {
+            throw new Error("Impossible de créer le dossier de sortie : " + outputFolder.fsName);
+        }
         doc.save(outputFile);
         
         // Export PDF (optionnel, pour preview rapide)
@@ -108,7 +105,7 @@ function main() {
         doc.close(SaveOptions.NO);
 
     } catch (e) {
-        alert("Erreur InDesign : " + e.message + " (Ligne " + e.line + ")");
+        throw new Error("Erreur InDesign : " + e.message + " (Ligne " + e.line + ")");
     } finally {
         app.scriptPreferences.userInteractionLevel = UserInteractionLevels.INTERACT_WITH_ALL;
     }
