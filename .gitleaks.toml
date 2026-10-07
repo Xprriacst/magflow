@@ -1,0 +1,13 @@
+title = "Magflow secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Valeurs factices documentées dans les fichiers d'exemple"
+paths = [
+  '''(^|/)\.env(\.[^/]+)?\.example$''',
+]
+regexes = [
+  '''(?i)(your|votre|example|placeholder|xxx|\.\.\.)''',
+]

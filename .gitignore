@@ -7,6 +7,7 @@ Thumbs.db
 node_modules/
 package-lock.json
 npm-debug.log*
+.npm-cache/
 
 # Python
 venv/
@@ -56,6 +57,7 @@ output/
 indesign_templates/
 *.indd
 *.idml
+*.indt
 
 # Test results
 test-results/

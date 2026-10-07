@@ -82,7 +82,7 @@ const LoginForm = () => {
         navigate('/dashboard');
       } else {
         setErrors({
-          general: 'Identifiants invalides. Veuillez vérifier votre e-mail et mot de passe.\n\nComptes de test disponibles:\n• marie.dubois@magflow.fr / Editor2024!\n• admin@magflow.fr / Admin2024!\n• jean.martin@magflow.fr / Designer2024!'
+          general: 'Identifiants invalides. Veuillez vérifier votre e-mail et votre mot de passe.'
         });
       }
     } catch (error) {
