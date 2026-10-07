@@ -16,14 +16,26 @@ import io
 load_dotenv()
 
 app = Flask(__name__)
+APP_FOLDER = os.path.dirname(os.path.abspath(__file__))
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['TEMPLATES_FOLDER'] = 'indesign_templates'
-app.config['OUTPUT_FOLDER'] = 'output'
+app.config['UPLOAD_FOLDER'] = os.getenv('MAGFLOW_UPLOAD_FOLDER', 'uploads')
+app.config['TEMPLATES_FOLDER'] = os.getenv('MAGFLOW_TEMPLATES_FOLDER', 'indesign_templates')
+app.config['OUTPUT_FOLDER'] = os.getenv('MAGFLOW_OUTPUT_FOLDER', 'output')
+
+def _configured_folder(config_key):
+    """Résout un dossier configuré relativement à l'application Flask."""
+    folder = app.config[config_key]
+    if not os.path.isabs(folder):
+        folder = os.path.join(APP_FOLDER, folder)
+    return os.path.abspath(folder)
+
+def _output_file(project_id):
+    """Chemin de sortie unique partagé par Flask et le script InDesign."""
+    return os.path.join(_configured_folder('OUTPUT_FOLDER'), f'{project_id}.indd')
 
 # Créer les dossiers nécessaires
-for folder in [app.config['UPLOAD_FOLDER'], app.config['TEMPLATES_FOLDER'], app.config['OUTPUT_FOLDER']]:
-    os.makedirs(folder, exist_ok=True)
+for config_key in ['UPLOAD_FOLDER', 'TEMPLATES_FOLDER', 'OUTPUT_FOLDER']:
+    os.makedirs(_configured_folder(config_key), exist_ok=True)
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'tiff', 'psd'}
 
@@ -157,6 +169,7 @@ def create_layout():
         
         config = {
             'project_id': project_id,
+            'output_path': _output_file(project_id),
             'prompt': prompt,
             'text_content': text_content,
             'subtitle': subtitle,
@@ -230,6 +243,7 @@ def create_layout_urls():
         
         config = {
             'project_id': project_id,
+            'output_path': _output_file(project_id),
             'prompt': prompt,
             'text_content': text_content,
             'subtitle': subtitle,
@@ -390,7 +404,8 @@ def validate_and_clean_instructions(instructions):
 def execute_indesign_script(project_id, config_path):
     """Exécute le script InDesign pour créer la mise en page"""
     try:
-        script_path = os.path.join(os.getcwd(), 'scripts', 'template_simple_working.jsx')
+        script_path = os.path.join(APP_FOLDER, 'scripts', 'template_simple_working.jsx')
+        config_path = os.path.abspath(config_path)
         indesign_app = os.getenv('INDESIGN_APP_NAME', 'Adobe InDesign 2026')
         # Commande pour exécuter le script InDesign
         # Sur macOS, utiliser osascript avec un fichier temporaire
@@ -417,7 +432,12 @@ end tell
             os.unlink(temp_script_path)
         
         if result.returncode == 0:
-            output_file = os.path.join(app.config['OUTPUT_FOLDER'], f'{project_id}.indd')
+            output_file = _output_file(project_id)
+            if not os.path.isfile(output_file):
+                return {
+                    'success': False,
+                    'error': 'InDesign n\'a pas créé le fichier de sortie attendu'
+                }
             return {
                 'success': True,
                 'output_file': output_file,
@@ -444,7 +464,7 @@ end tell
 def download_file(project_id):
     """Télécharger le fichier InDesign généré"""
     try:
-        output_file = os.path.join(app.config['OUTPUT_FOLDER'], f'{project_id}.indd')
+        output_file = _output_file(project_id)
         if os.path.exists(output_file):
             return send_file(output_file, as_attachment=True)
         else:
