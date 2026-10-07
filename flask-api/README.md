@@ -25,7 +25,7 @@ Ajouter dans Render Dashboard → Environment:
 
 ```
 OPENAI_API_KEY=<votre_clé_openai>
-API_TOKEN=alexandreesttropbeau
+API_TOKEN=replace-with-a-new-random-secret
 ```
 
 ### 4. Déployer
@@ -40,7 +40,7 @@ curl https://<votre-app>.onrender.com/api/status
 
 # Test avec authentification
 curl -X POST https://<votre-app>.onrender.com/api/create-layout-urls \
-  -H "Authorization: Bearer alexandreesttropbeau" \
+  -H "Authorization: Bearer replace-with-a-new-random-secret" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "prompt=Test&text_content=Hello&image_urls=https://example.com/image.jpg"
 ```
@@ -70,6 +70,10 @@ Copier `.env.example` vers `.env` et remplir les valeurs:
 ```bash
 cp .env.example .env
 ```
+
+`MAGFLOW_OUTPUT_FOLDER` configure l'unique dossier utilisé à la fois par le
+script JSX et par `GET /api/download/<project_id>`. Un chemin relatif est résolu
+depuis `flask-api/`.
 
 ### Lancer
 

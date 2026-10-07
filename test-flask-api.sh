@@ -14,7 +14,7 @@ echo ""
 # Test 2: Génération avec données minimales
 echo "2️⃣ Test de génération avec données minimales..."
 curl -X POST http://localhost:5003/api/create-layout-urls \
-  -H "Authorization: Bearer alexandreesttropbeau" \
+  -H "Authorization: Bearer replace-with-a-new-random-secret" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "prompt=Test Article" \
   -d "text_content={\"titre_principal\":\"Test\",\"chapo\":\"Test chapo\"}" \

@@ -38,7 +38,7 @@ J'ai corrigé les problèmes suivants:
 3. **Variables d'environnement:**
    ```
    OPENAI_API_KEY=<votre_clé_openai>
-   API_TOKEN=alexandreesttropbeau
+   API_TOKEN=replace-with-a-new-random-secret
    ```
 
 4. **Cliquer "Create Web Service"**
@@ -57,7 +57,7 @@ Une fois Flask déployé:
    ```
    PUBLIC_URL=https://magflow.onrender.com
    FLASK_API_URL=https://magflow-flask-xyz.onrender.com
-   FLASK_API_TOKEN=alexandreesttropbeau
+   FLASK_API_TOKEN=replace-with-a-new-random-secret
    ```
 
 3. **Redéployer:** Manual Deploy → Deploy latest commit

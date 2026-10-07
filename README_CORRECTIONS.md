@@ -97,7 +97,7 @@ git push
 
 # 3. Variables d'environnement
 # OPENAI_API_KEY=<votre_clé>
-# API_TOKEN=alexandreesttropbeau
+# API_TOKEN=replace-with-a-new-random-secret
 ```
 
 ### 2️⃣ Configurer Backend (5 min)
@@ -107,7 +107,7 @@ git push
 # Ajouter:
 PUBLIC_URL=https://magflow.onrender.com
 FLASK_API_URL=https://magflow-flask-xyz.onrender.com
-FLASK_API_TOKEN=alexandreesttropbeau
+FLASK_API_TOKEN=replace-with-a-new-random-secret
 
 # Redéployer
 ```
