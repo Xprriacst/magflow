@@ -4,7 +4,10 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
 
 function getKey() {
-  const secret = process.env.ENCRYPTION_SECRET || 'magflow-license-secret';
+  const secret = process.env.ENCRYPTION_SECRET;
+  if (!secret) {
+    throw new Error('ENCRYPTION_SECRET non configuré');
+  }
   return crypto.createHash('sha256').update(secret).digest();
 }
 

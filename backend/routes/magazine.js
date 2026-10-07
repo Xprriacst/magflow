@@ -1,6 +1,5 @@
 import express from 'express';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient.js';
-import { generateMagazine } from '../services/flaskService.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
@@ -14,7 +13,7 @@ const PLACEHOLDER_IMAGE = process.env.MAGFLOW_PLACEHOLDER_IMAGE_URL ||
  */
 router.post('/generate', async (req, res, next) => {
   try {
-    const { content, contentStructure, template, template_id, titre, chapo, images } = req.body;
+    const { contentStructure, template, template_id, titre, chapo, images } = req.body;
     const imageSources = Array.isArray(images) ? images.filter(Boolean) : [];
 
     // ✅ SPRINT 1.2: Support template_id OU template object (rétrocompatibilité)
@@ -50,8 +49,6 @@ router.post('/generate', async (req, res, next) => {
 
     // Créer un enregistrement dans la base de données
     const generationId = uuidv4();
-    let dbError = null;
-
     if (isSupabaseConfigured) {
       const { error } = await supabase
         .from('magazine_generations')
@@ -65,7 +62,6 @@ router.post('/generate', async (req, res, next) => {
         }]);
 
       if (error) {
-        dbError = error;
         console.error('[Magazine] Database error:', error);
       }
     } else {
@@ -76,69 +72,39 @@ router.post('/generate', async (req, res, next) => {
     const connectedAgents = req.app.get('connectedAgents');
     const sendJobToAgent = req.app.get('sendJobToAgent');
     const hasConnectedAgent = connectedAgents && connectedAgents.size > 0;
-    let isRemoteJob = false;
-    
-    let result;
-    
-    if (hasConnectedAgent) {
-      // ✅ Envoyer le job à l'agent via WebSocket
-      console.log('[Magazine] Agent connecté - envoi du job via WebSocket');
-      
-      const job = {
-        id: generationId,
-        template_id: template_id || templateData?.id,
-        template_name: templateData?.name || 'Template',
-        template_path: templateData?.file_path,
-        titre: finalTitre,
-        chapo: finalChapo,
-        images: resolvedImages,
-        contentStructure
-      };
-      
-      const agentId = connectedAgents.keys().next().value;
-      if (!sendJobToAgent(agentId, job)) {
-        throw new Error(`Agent de rendu indisponible: ${agentId}`);
-      }
-      isRemoteJob = true;
-      
-      // Répondre immédiatement (le job est en cours)
-      result = {
-        projectId: generationId,
-        status: 'processing',
-        message: 'Job envoyé à l\'agent local'
-      };
-    } else {
-      // Fallback: appeler Flask
-      console.log('[Magazine] Pas d\'agent connecté - utilisation Flask');
-      result = await generateMagazine({
-        titre: finalTitre,
-        contentStructure,
-        subtitle: finalChapo,
-        template: templateData,
-        template_id: template_id || templateData?.id,
-        imageUrls: resolvedImages
+    if (!hasConnectedAgent || typeof sendJobToAgent !== 'function') {
+      return res.status(503).json({
+        success: false,
+        error: 'Aucun agent de rendu disponible'
       });
     }
 
-    // Mettre à jour le statut
-    if (isSupabaseConfigured && !dbError && !isRemoteJob) {
-      await supabase
-        .from('magazine_generations')
-        .update({
-          status: 'completed',
-          flask_project_id: result.projectId,
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', generationId);
+    // Envoyer le job à l'unique chemin de rendu : file WebSocket -> agent -> ExtendScript.
+    console.log('[Magazine] Agent connecté - envoi du job via WebSocket');
+
+    const job = {
+      id: generationId,
+      template_id: template_id || templateData?.id,
+      template_name: templateData?.name || 'Template',
+      template_path: templateData?.file_path,
+      titre: finalTitre,
+      chapo: finalChapo,
+      images: resolvedImages,
+      contentStructure
+    };
+
+    const agentId = connectedAgents.keys().next().value;
+    if (!sendJobToAgent(agentId, job)) {
+      throw new Error(`Agent de rendu indisponible: ${agentId}`);
     }
 
-    console.log('[Magazine] Generation completed:', result.projectId);
+    console.log('[Magazine] Generation queued:', generationId);
 
     res.json({
       success: true,
       generationId,
-      projectId: result.projectId,
-      downloadUrl: result.downloadUrl
+      projectId: generationId,
+      status: 'processing'
     });
 
   } catch (error) {

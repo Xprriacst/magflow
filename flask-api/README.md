@@ -25,7 +25,7 @@ Ajouter dans Render Dashboard → Environment:
 
 ```
 OPENAI_API_KEY=<votre_clé_openai>
-API_TOKEN=alexandreesttropbeau
+API_TOKEN=replace-with-a-new-random-secret
 ```
 
 ### 4. Déployer
@@ -40,7 +40,7 @@ curl https://<votre-app>.onrender.com/api/status
 
 # Test avec authentification
 curl -X POST https://<votre-app>.onrender.com/api/create-layout-urls \
-  -H "Authorization: Bearer alexandreesttropbeau" \
+  -H "Authorization: Bearer replace-with-a-new-random-secret" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "prompt=Test&text_content=Hello&image_urls=https://example.com/image.jpg"
 ```

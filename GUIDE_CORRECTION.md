@@ -87,7 +87,7 @@ Start Command: gunicorn app:app --bind 0.0.0.0:$PORT
 **Variables d'environnement:**
 ```
 OPENAI_API_KEY=<votre_clé_openai>
-API_TOKEN=alexandreesttropbeau
+API_TOKEN=replace-with-a-new-random-secret
 PORT=10000
 ```
 
@@ -99,7 +99,7 @@ Une fois Flask déployé sur Render (exemple: `https://magflow-flask.onrender.co
 
 ```
 FLASK_API_URL=https://magflow-flask.onrender.com
-FLASK_API_TOKEN=alexandreesttropbeau
+FLASK_API_TOKEN=replace-with-a-new-random-secret
 ```
 
 ---
@@ -165,7 +165,7 @@ OPENAI_API_KEY=<votre_clé>
 SUPABASE_URL=https://wxtrhxvyjfsqgphboqwo.supabase.co
 SUPABASE_ANON_KEY=<votre_clé>
 FLASK_API_URL=https://magflow-flask.onrender.com
-FLASK_API_TOKEN=alexandreesttropbeau
+FLASK_API_TOKEN=replace-with-a-new-random-secret
 FRONTEND_URL=https://magflow-app.netlify.app
 ```
 
@@ -176,7 +176,7 @@ FRONTEND_URL=https://magflow-app.netlify.app
 **Variables d'environnement:**
 ```env
 OPENAI_API_KEY=<votre_clé>
-API_TOKEN=alexandreesttropbeau
+API_TOKEN=replace-with-a-new-random-secret
 ```
 
 **Build Command:**
@@ -246,7 +246,7 @@ curl https://magflow-flask.onrender.com/api/status
 
 # Test de génération (avec Bearer token)
 curl -X POST https://magflow-flask.onrender.com/api/create-layout-urls \
-  -H "Authorization: Bearer alexandreesttropbeau" \
+  -H "Authorization: Bearer replace-with-a-new-random-secret" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "prompt=Test&text_content=Test&image_urls=https://example.com/image.jpg"
 ```

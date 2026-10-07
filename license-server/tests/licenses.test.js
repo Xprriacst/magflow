@@ -3,6 +3,8 @@ import { generateLicenseKey, validateLicenseKeyFormat } from '../services/keyGen
 import { validateHardwareId } from '../services/hardwareValidator.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 
+process.env.ENCRYPTION_SECRET = 'test-only-encryption-secret';
+
 describe('License Key Generation', () => {
   it('génère une clé au bon format', () => {
     const key = generateLicenseKey();

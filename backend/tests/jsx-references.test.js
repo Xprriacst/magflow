@@ -12,7 +12,7 @@ describe('scripts ExtendScript appeles par le backend', () => {
     const visit = directory => {
       for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
         const target = path.join(directory, entry.name);
-        if (entry.isDirectory()) visit(target);
+        if (entry.isDirectory() && entry.name !== 'node_modules') visit(target);
         else if (entry.name.endsWith('.js')) files.push(target);
       }
     };

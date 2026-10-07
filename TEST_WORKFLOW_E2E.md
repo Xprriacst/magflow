@@ -20,8 +20,8 @@
    - Erreur explicite si aucune image n'est téléchargeable
 
 ### 5. **Tokens vérifiés**
-   - Backend Node : `FLASK_API_TOKEN=alexandreesttropbeau`
-   - Flask : `API_TOKEN=alexandreesttropbeau`
+   - Backend Node : `FLASK_API_TOKEN=replace-with-a-new-random-secret`
+   - Flask : `API_TOKEN=replace-with-a-new-random-secret`
    - ✅ Authentification synchronisée
 
 ### 6. **Script de test créé**

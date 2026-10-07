@@ -4,9 +4,11 @@ import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import Icon from '../../../components/AppIcon';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const LoginForm = () => {
   const navigate = useNavigate();
+  const { signIn } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -14,13 +16,6 @@ const LoginForm = () => {
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
-
-  // Mock credentials for authentication
-  const mockCredentials = {
-    editor: { email: 'marie.dubois@magflow.fr', password: 'Editor2024!' },
-    admin: { email: 'admin@magflow.fr', password: 'Admin2024!' },
-    designer: { email: 'jean.martin@magflow.fr', password: 'Designer2024!' }
-  };
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e?.target;
@@ -62,29 +57,8 @@ const LoginForm = () => {
     setIsLoading(true);
 
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Check mock credentials
-      const isValidCredential = Object.values(mockCredentials)?.some(
-        cred => cred?.email === formData?.email && cred?.password === formData?.password
-      );
-
-      if (isValidCredential) {
-        // Store authentication state
-        localStorage.setItem('isAuthenticated', 'true');
-        localStorage.setItem('userEmail', formData?.email);
-        if (formData?.rememberMe) {
-          localStorage.setItem('rememberMe', 'true');
-        }
-        
-        // Navigate to dashboard
-        navigate('/dashboard');
-      } else {
-        setErrors({
-          general: 'Identifiants invalides. Veuillez vérifier votre e-mail et votre mot de passe.'
-        });
-      }
+      await signIn(formData?.email, formData?.password);
+      navigate('/dashboard');
     } catch (error) {
       setErrors({
         general: 'Une erreur est survenue lors de la connexion. Veuillez réessayer.'

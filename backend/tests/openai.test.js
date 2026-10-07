@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { analyzeContentStructure } from '../services/openaiService.js';
 
-describe('OpenAI Service - Extraction Pure (Sprint 1.1)', () => {
+describe.skipIf(!process.env.ANTHROPIC_API_KEY)('OpenAI Service - Extraction Pure (Sprint 1.1)', () => {
   
   // Test 1: Préservation du texte original
   describe('Préservation du texte original', () => {

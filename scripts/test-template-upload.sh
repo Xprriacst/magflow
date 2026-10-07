@@ -61,10 +61,10 @@ echo ""
 # ============================================
 echo -e "${YELLOW}🔬 Test Flask /api/templates/analyze...${NC}"
 
-# Trouver un template existant pour tester
-TEMPLATE_PATH="/Users/alexandreerrasti/Documents/magflow/Indesign automation v1/indesign_templates/template-mag-simple-1808.indt"
+# Le fichier client reste hors Git et doit être fourni explicitement.
+TEMPLATE_PATH="${MAGFLOW_TEST_TEMPLATE_PATH:-}"
 
-if [ -f "$TEMPLATE_PATH" ]; then
+if [ -n "$TEMPLATE_PATH" ] && [ -f "$TEMPLATE_PATH" ]; then
     echo -e "  Template trouvé: $(basename "$TEMPLATE_PATH")"
     
     FLASK_RESPONSE=$(curl -s -X POST "${FLASK_URL}/api/templates/analyze" \
@@ -91,7 +91,7 @@ if [ -f "$TEMPLATE_PATH" ]; then
     fi
 else
     echo -e "  ${YELLOW}○${NC} Template de test non trouvé (skipped)"
-    echo -e "    Chemin attendu: $TEMPLATE_PATH"
+    echo -e "    Configurez MAGFLOW_TEST_TEMPLATE_PATH sur la machine de rendu"
 fi
 
 echo ""

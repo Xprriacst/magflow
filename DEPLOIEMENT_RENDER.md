@@ -42,7 +42,7 @@ Si votre code est déjà dans un repo Git:
 3. **Variables d'environnement:**
    ```
    OPENAI_API_KEY=<copier depuis backend/.env>
-   API_TOKEN=alexandreesttropbeau
+   API_TOKEN=replace-with-a-new-random-secret
    ```
 
 4. **Cliquer "Create Web Service"**
@@ -84,7 +84,7 @@ PUBLIC_URL=https://magflow.onrender.com
 FLASK_API_URL=https://magflow-flask-xxxxxxx.onrender.com
 
 # Token Flask
-FLASK_API_TOKEN=alexandreesttropbeau
+FLASK_API_TOKEN=replace-with-a-new-random-secret
 
 # Autres variables (vérifier qu'elles existent)
 NODE_ENV=production

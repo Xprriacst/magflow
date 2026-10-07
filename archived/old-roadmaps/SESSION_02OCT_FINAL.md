@@ -70,10 +70,10 @@ Améliorations :
 
 ```bash
 # Backend Node (.env)
-FLASK_API_TOKEN=alexandreesttropbeau
+FLASK_API_TOKEN=replace-with-a-new-random-secret
 
 # Flask (.env)
-API_TOKEN=alexandreesttropbeau
+API_TOKEN=replace-with-a-new-random-secret
 ```
 **Impact :** Authentification opérationnelle
 
