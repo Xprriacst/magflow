@@ -2,6 +2,12 @@ const assert = require('assert');
 const path = require('path');
 const { createAgentConfig } = require('./config');
 
+assert.throws(
+  () => createAgentConfig({ env: {} }),
+  /MAGFLOW_DATA_DIR/,
+  'une racine explicite est requise hors Electron'
+);
+
 const defaults = createAgentConfig({ env: {}, userDataDir: '/runtime/magflow' });
 assert.equal(defaults.templatesDir, path.resolve('/runtime/magflow/templates'));
 assert.equal(defaults.jobsDir, path.resolve('/runtime/magflow/jobs'));
