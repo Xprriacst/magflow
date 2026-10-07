@@ -11,6 +11,9 @@ import templateUploadRoutes from './routes/templateUpload.js';
 import magazineRoutes from './routes/magazine.js';
 import uploadRoutes from './routes/upload.js';
 import authRoutes from './routes/auth.js';
+import { supabase, isSupabaseConfigured } from './services/supabaseClient.js';
+import { sendJobToAgent, isAgentConnected } from './services/jobDispatcher.js';
+import { authenticateAgentSocket, parseAllowedOrigins, requireUserAuth } from './middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,24 +24,60 @@ const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 3001;
 
+const devAllowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'http://localhost:4028'
+];
+const configuredOrigins = parseAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS);
+const allowedOrigins = configuredOrigins.length > 0
+  ? configuredOrigins
+  : (process.env.NODE_ENV === 'production' ? [] : devAllowedOrigins);
+
+function corsOrigin(origin, callback) {
+  if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+  console.warn('[CORS] Origin not allowed:', origin);
+  return callback(new Error('Not allowed by CORS'));
+}
+
 // Socket.io pour la communication avec les Desktop Agents
 const io = new Server(httpServer, {
   cors: {
-    origin: '*',
+    origin: corsOrigin,
     methods: ['GET', 'POST']
   }
 });
+io.use(authenticateAgentSocket);
 
 // Store des agents connectés (userId -> socketId)
 const connectedAgents = new Map();
+
+async function updateGeneration(jobId, changes) {
+  if (!isSupabaseConfigured || !supabase || !jobId) return;
+
+  const { error } = await supabase
+    .from('magazine_generations')
+    .update(changes)
+    .eq('id', jobId);
+
+  if (error) {
+    console.error(`[Jobs] Impossible de mettre à jour ${jobId}:`, error);
+  }
+}
 
 // Gestion des connexions WebSocket
 io.on('connection', (socket) => {
   console.log('🔌 Agent connecté:', socket.id);
   
   // Enregistrement de l'agent
-  socket.on('agent:register', (data) => {
-    const { agentId, userId, platform, indesignVersion } = data;
+  socket.on('agent:register', (data = {}) => {
+    const { agentId, platform, indesignVersion } = data;
+    const userId = socket.auth?.userId || data.userId || null;
+    if (!agentId) {
+      socket.emit('agent:error', { error: 'agentId is required' });
+      return;
+    }
     console.log(`✅ Agent enregistré: ${agentId} (${platform}, ${indesignVersion})`);
     
     // Stocker l'agent par agentId (et aussi par userId si disponible)
@@ -56,15 +95,26 @@ io.on('connection', (socket) => {
   });
   
   // Mise à jour du statut d'un job
-  socket.on('job:status', (data) => {
+  socket.on('job:status', async (data = {}) => {
     console.log(`📊 Job ${data.jobId}: ${data.status}`);
-    // TODO: Mettre à jour en base de données
+    if (data.status === 'processing') {
+      await updateGeneration(data.jobId, { status: 'processing' });
+    }
   });
   
   // Job terminé
-  socket.on('job:complete', (data) => {
+  socket.on('job:complete', async (data = {}) => {
     console.log(`✅ Job ${data.jobId} terminé:`, data.success ? 'Succès' : 'Erreur');
-    // TODO: Notifier le frontend, stocker le résultat
+    await updateGeneration(data.jobId, data.success ? {
+      status: 'completed',
+      flask_project_id: data.projectId || null,
+      completed_at: new Date().toISOString(),
+      error_message: null
+    } : {
+      status: 'error',
+      error_message: data.error || 'Erreur de rendu inconnue',
+      completed_at: new Date().toISOString()
+    });
   });
   
   socket.on('disconnect', () => {
@@ -80,54 +130,23 @@ io.on('connection', (socket) => {
 });
 
 // Fonction pour envoyer un job à un agent
-export function sendJobToAgent(userId, job) {
-  const agent = connectedAgents.get(userId);
-  if (agent) {
-    io.to(agent.socketId).emit('job:generate', job);
-    return true;
-  }
-  return false;
+export function dispatchJobToAgent(agentId, job) {
+  return sendJobToAgent(io, connectedAgents, agentId, job);
 }
 
 // Fonction pour vérifier si un agent est connecté
-export function isAgentConnected(userId) {
-  return connectedAgents.has(userId);
+export function hasConnectedAgent(agentId) {
+  return isAgentConnected(connectedAgents, agentId);
 }
 
 // Exposer io pour les routes
 app.set('io', io);
 app.set('connectedAgents', connectedAgents);
+app.set('sendJobToAgent', dispatchJobToAgent);
 
 // Middleware
-const devAllowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:3000',
-  'http://localhost:4028'
-];
-
-const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? [process.env.FRONTEND_URL].filter(Boolean)
-  : devAllowedOrigins;
-
 app.use(cors({
-  origin(origin, callback) {
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    const isAllowed =
-      allowedOrigins.includes(origin) ||
-      /^https?:\/\/127\.0\.0\.1(?::\d+)?$/.test(origin) ||
-      /^https?:\/\/localhost(?::\d+)?$/.test(origin);
-
-    if (isAllowed) {
-      return callback(null, true);
-    }
-
-    console.warn('[CORS] Origin not allowed:', origin);
-    return callback(new Error('Not allowed by CORS'));
-  },
+  origin: corsOrigin,
   credentials: true
 }));
 
@@ -135,7 +154,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Servir les fichiers statiques (images uploadées)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', requireUserAuth, express.static(path.join(__dirname, '../uploads')));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -147,12 +166,13 @@ app.get('/health', (req, res) => {
 });
 
 // Routes
+app.use('/api/auth', authRoutes);
+app.use('/api', requireUserAuth);
 app.use('/api/content', contentRoutes);
 app.use('/api/templates', templatesRoutes);
 app.use('/api/templates', templateUploadRoutes); // Upload routes under /api/templates
 app.use('/api/magazine', magazineRoutes);
 app.use('/api/upload', uploadRoutes);
-app.use('/api/auth', authRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

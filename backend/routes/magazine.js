@@ -73,9 +73,10 @@ router.post('/generate', async (req, res, next) => {
     }
 
     // Vérifier si un agent est connecté
-    const io = req.app.get('io');
     const connectedAgents = req.app.get('connectedAgents');
+    const sendJobToAgent = req.app.get('sendJobToAgent');
     const hasConnectedAgent = connectedAgents && connectedAgents.size > 0;
+    let isRemoteJob = false;
     
     let result;
     
@@ -94,8 +95,11 @@ router.post('/generate', async (req, res, next) => {
         contentStructure
       };
       
-      // Envoyer à tous les agents connectés (pour l'instant)
-      io.emit('job:new', job);
+      const agentId = connectedAgents.keys().next().value;
+      if (!sendJobToAgent(agentId, job)) {
+        throw new Error(`Agent de rendu indisponible: ${agentId}`);
+      }
+      isRemoteJob = true;
       
       // Répondre immédiatement (le job est en cours)
       result = {
@@ -117,7 +121,7 @@ router.post('/generate', async (req, res, next) => {
     }
 
     // Mettre à jour le statut
-    if (isSupabaseConfigured && !dbError) {
+    if (isSupabaseConfigured && !dbError && !isRemoteJob) {
       await supabase
         .from('magazine_generations')
         .update({
